@@ -6,12 +6,12 @@ const pad = (n: number) => String(n).padStart(2, '0');
 // Local-calendar day key (not UTC), so an order at 1am Vietnam time lands on the right day.
 const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-function lastNDays(n: number) {
-  const now = new Date();
+function lastNDays(n: number, end: Date) {
+  const now = new Date(end);
   return Array.from({ length: n }, (_, idx) => {
     const d = new Date(now);
     d.setDate(d.getDate() - (n - 1 - idx));
-    return { key: dayKey(d), label: `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`, isToday: idx === n - 1 };
+    return { key: dayKey(d), label: `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`, isToday: dayKey(d) === dayKey(new Date()) };
   });
 }
 
@@ -19,8 +19,8 @@ const compact = (v: number) =>
   v >= 1_000_000 ? `${(v / 1_000_000).toFixed(v >= 10_000_000 ? 0 : 1)}tr` : v >= 1_000 ? `${Math.round(v / 1_000)}k` : String(v);
 
 // Money actually collected per day (paid, not cancelled) for the last `days` days.
-export default function RevenueChart({ orders, days = 7 }: { orders: Order[]; days?: number }) {
-  const series = lastNDays(days).map(day => ({
+export default function RevenueChart({ orders, days = 7, endDate }: { orders: Order[]; days?: number; endDate?: Date }) {
+  const series = lastNDays(days, endDate ?? new Date()).map(day => ({
     ...day,
     total: orders
       .filter(o => o.status !== 'cancelled' && o.paymentStatus === 'paid' && dayKey(new Date(o.date)) === day.key)

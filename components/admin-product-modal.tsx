@@ -2,15 +2,17 @@
 
 import { useRef, useState } from 'react';
 import { X, Upload, Camera, ImageOff } from 'lucide-react';
-import { Product, GradeCode } from '../app/data/products';
+import { Product, GradeCode, DEFAULT_LOW_STOCK } from '../app/data/products';
 
 const GRADE_OPTIONS: GradeCode[] = ['PG', 'MG', 'RG', 'HG', 'EG', 'SD', 'ACC'];
 const MAX_IMAGES = 5;
 
 interface AdminProductModalProps {
   product: Product | null; // null = adding a new product
+  /** Current unit cost (staff-only data, kept outside the public product record). */
+  cost?: number;
   onClose: () => void;
-  onSave: (product: Product) => void;
+  onSave: (product: Product, cost: number) => void;
 }
 
 type FormState = {
@@ -20,7 +22,9 @@ type FormState = {
   series: string;
   price: string;
   salePrice: string;
+  costPrice: string;
   stock: string;
+  lowStockThreshold: string;
   images: string[];
   isNew: boolean;
   isBestSeller: boolean;
@@ -31,11 +35,11 @@ type FormState = {
   description: string;
 };
 
-function toFormState(product: Product | null): FormState {
+function toFormState(product: Product | null, cost?: number): FormState {
   if (!product) {
     return {
-      name: '', grade: 'HG', scale: '', series: '', price: '', salePrice: '',
-      stock: '10', images: [], isNew: true, isBestSeller: false,
+      name: '', grade: 'HG', scale: '', series: '', price: '', salePrice: '', costPrice: '',
+      stock: '10', lowStockThreshold: String(DEFAULT_LOW_STOCK), images: [], isNew: true, isBestSeller: false,
       height: '', partsCount: '', difficulty: 'Beginner', weaponList: '', description: '',
     };
   }
@@ -46,7 +50,9 @@ function toFormState(product: Product | null): FormState {
     series: product.series,
     price: String(product.price),
     salePrice: product.salePrice != null ? String(product.salePrice) : '',
+    costPrice: cost ? String(cost) : '',
     stock: String(product.stock),
+    lowStockThreshold: String(product.lowStockThreshold ?? DEFAULT_LOW_STOCK),
     images: [product.image, ...(product.images ?? [])].filter(Boolean),
     isNew: product.isNew,
     isBestSeller: product.isBestSeller,
@@ -60,8 +66,8 @@ function toFormState(product: Product | null): FormState {
 
 const fieldCls = 'w-full px-3 py-2.5 text-sm rounded-xl input-field';
 
-export default function AdminProductModal({ product, onClose, onSave }: AdminProductModalProps) {
-  const [form, setForm] = useState<FormState>(() => toFormState(product));
+export default function AdminProductModal({ product, cost, onClose, onSave }: AdminProductModalProps) {
+  const [form, setForm] = useState<FormState>(() => toFormState(product, cost));
   const [error, setError] = useState('');
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -110,6 +116,7 @@ export default function AdminProductModal({ product, onClose, onSave }: AdminPro
       image: form.images[0] ?? '',
       images: form.images.length > 1 ? form.images.slice(1) : undefined,
       stock: Math.max(0, Math.floor(Number(form.stock))),
+      lowStockThreshold: Math.max(0, Math.floor(Number(form.lowStockThreshold) || 0)),
       isNew: form.isNew,
       isBestSeller: form.isBestSeller,
       specs: {
@@ -121,7 +128,7 @@ export default function AdminProductModal({ product, onClose, onSave }: AdminPro
       description: form.description.trim(),
     };
 
-    onSave(saved);
+    onSave(saved, Math.max(0, Math.floor(Number(form.costPrice) || 0)));
   };
 
   return (
@@ -251,6 +258,18 @@ export default function AdminProductModal({ product, onClose, onSave }: AdminPro
             <div>
               <label htmlFor="p-stock" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Tồn kho *</label>
               <input id="p-stock" required type="number" min={0} value={form.stock} onChange={(e) => set('stock', e.target.value)} className={fieldCls} />
+            </div>
+          </div>
+
+          {/* Cost + low-stock alert */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="p-cost" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Giá vốn (chỉ nhân viên thấy)</label>
+              <input id="p-cost" type="number" min={0} value={form.costPrice} onChange={(e) => set('costPrice', e.target.value)} className={fieldCls} placeholder="Để tính lợi nhuận" />
+            </div>
+            <div>
+              <label htmlFor="p-low" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Báo “sắp hết” khi còn ≤</label>
+              <input id="p-low" type="number" min={0} value={form.lowStockThreshold} onChange={(e) => set('lowStockThreshold', e.target.value)} className={fieldCls} />
             </div>
           </div>
 

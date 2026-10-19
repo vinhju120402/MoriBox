@@ -83,6 +83,8 @@ export interface Product {
   /** Extra gallery photos beyond the cover `image` (admin upload/capture, up to 5 total). */
   images?: string[];
   stock: number;
+  /** Stock level at or below which the product counts as "sắp hết" (default 5). */
+  lowStockThreshold?: number;
   isNew: boolean;
   isBestSeller: boolean;
   specs: {
@@ -93,6 +95,9 @@ export interface Product {
   };
   description: string;
 }
+
+export const DEFAULT_LOW_STOCK = 5;
+export const lowStockLevel = (p: Pick<Product, 'lowStockThreshold'>) => p.lowStockThreshold ?? DEFAULT_LOW_STOCK;
 
 export const PRODUCTS: Product[] = [
   {

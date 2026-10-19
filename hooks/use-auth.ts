@@ -9,6 +9,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: Role;
+  disabled?: boolean;
   joinedAt?: string; // ISO timestamp
 }
 
@@ -17,6 +18,7 @@ interface ProfileRow {
   name: string;
   email: string;
   role: string;
+  disabled?: boolean;
   created_at: string;
 }
 
@@ -25,6 +27,7 @@ const toUser = (r: ProfileRow): AuthUser => ({
   name: r.name,
   email: r.email,
   role: isRole(r.role) ? r.role : 'customer',
+  disabled: !!r.disabled,
   joinedAt: r.created_at,
 });
 
@@ -51,7 +54,21 @@ async function loadProfile(userId: string | undefined) {
     setState({ user: null, hasLoaded: true });
     return;
   }
-  const { data } = await getSupabase().from('profiles').select('*').eq('id', userId).maybeSingle<ProfileRow>();
+  const supabase = getSupabase();
+  // Password accepted but the one-time code not entered yet (AAL1 with a factor
+  // set up): not logged in as far as the app is concerned. The session is kept so
+  // the code step on the login page can finish it.
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+    setState({ user: null, hasLoaded: true });
+    return;
+  }
+  const { data } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle<ProfileRow>();
+  if (data?.disabled) {
+    await supabase.auth.signOut();
+    setState({ user: null, hasLoaded: true });
+    return;
+  }
   setState({ user: data ? toUser(data) : null, hasLoaded: true });
 }
 
@@ -75,7 +92,9 @@ function subscribe(cb: () => void) {
 const getSnapshot = () => state;
 const getServerSnapshot = () => SERVER_STATE;
 
-export type AuthError = 'invalid_credentials' | 'email_not_confirmed' | 'exists' | 'weak_password' | 'unknown';
+export type AuthError =
+  | 'invalid_credentials' | 'email_not_confirmed' | 'exists' | 'weak_password' | 'unknown'
+  | 'mfa_required' | 'invalid_code' | 'disabled';
 
 function mapError(message: string): AuthError {
   const m = message.toLowerCase();
@@ -91,8 +110,29 @@ export function useAuth() {
 
   // Returns null on success, or an error code.
   const login = useCallback(async (email: string, password: string): Promise<AuthError | null> => {
-    const { error } = await getSupabase().auth.signInWithPassword({ email: email.trim(), password });
-    return error ? mapError(error.message) : null;
+    const supabase = getSupabase();
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) return mapError(error.message);
+    const { data: profile } = await supabase.from('profiles').select('disabled').eq('id', data.user.id).maybeSingle();
+    if (profile?.disabled) {
+      await supabase.auth.signOut();
+      return 'disabled';
+    }
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') return 'mfa_required';
+    return null;
+  }, []);
+
+  // Second step of a login for accounts with two-factor authentication.
+  const verifyMfa = useCallback(async (code: string): Promise<AuthError | null> => {
+    const supabase = getSupabase();
+    const { data: factors } = await supabase.auth.mfa.listFactors();
+    const factor = factors?.totp.find(f => f.status === 'verified');
+    if (!factor) return 'unknown';
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code: code.trim() });
+    if (error) return 'invalid_code';
+    await loadProfile((await supabase.auth.getSession()).data.session?.user.id);
+    return null;
   }, []);
 
   // Returns 'ok' (signed in), 'confirm' (check email to finish), or an error code.
@@ -131,7 +171,7 @@ export function useAuth() {
     return true;
   }, [user]);
 
-  return { user, isLoggedIn: !!user, role: user?.role, isAdmin: user?.role === 'admin', isStaff: isStaff(user?.role), hasLoaded, login, register, logout, updateProfile, deleteAccount };
+  return { user, isLoggedIn: !!user, role: user?.role, isAdmin: user?.role === 'admin', isStaff: isStaff(user?.role), hasLoaded, login, verifyMfa, register, logout, updateProfile, deleteAccount };
 }
 
 // Admin-only: every registered profile (RLS returns just your own row to non-admins),
@@ -161,5 +201,12 @@ export function useAllProfiles() {
     return { ok: true };
   }, []);
 
-  return { users: user?.role === 'admin' ? users : [], setRole };
+  const setDisabled = useCallback(async (userId: string, disabled: boolean): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const { error } = await getSupabase().rpc('set_user_disabled', { p_user_id: userId, p_disabled: disabled });
+    if (error) return { ok: false, error: error.message };
+    setVersion(v => v + 1);
+    return { ok: true };
+  }, []);
+
+  return { users: user?.role === 'admin' ? users : [], setRole, setDisabled };
 }

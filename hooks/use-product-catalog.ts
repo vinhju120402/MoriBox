@@ -3,6 +3,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import { PRODUCTS, Product, GradeCode } from '../app/data/products';
 import { getSupabase } from '../lib/supabase';
+import { resolveImage } from '../lib/storage';
 
 interface ProductRow {
   id: string;
@@ -15,6 +16,7 @@ interface ProductRow {
   image: string;
   images: string[];
   stock: number;
+  low_stock_threshold: number | null;
   is_new: boolean;
   is_best_seller: boolean;
   specs: Product['specs'];
@@ -32,6 +34,7 @@ const fromRow = (r: ProductRow): Product => ({
   image: r.image,
   images: r.images?.length ? r.images : undefined,
   stock: r.stock,
+  lowStockThreshold: r.low_stock_threshold ?? undefined,
   isNew: r.is_new,
   isBestSeller: r.is_best_seller,
   specs: r.specs,
@@ -50,6 +53,7 @@ const toRow = (p: Partial<Product>): Partial<ProductRow> => {
   if (p.image !== undefined) row.image = p.image;
   if (p.images !== undefined) row.images = p.images;
   if (p.stock !== undefined) row.stock = p.stock;
+  if (p.lowStockThreshold !== undefined) row.low_stock_threshold = p.lowStockThreshold;
   if (p.isNew !== undefined) row.is_new = p.isNew;
   if (p.isBestSeller !== undefined) row.is_best_seller = p.isBestSeller;
   if (p.specs !== undefined) row.specs = p.specs;
@@ -99,6 +103,15 @@ function subscribe(cb: () => void) {
 const getSnapshot = () => state;
 const getServerSnapshot = () => SERVER_STATE;
 
+// Photos picked in the admin form arrive as data URLs; store them in Supabase
+// Storage and keep only the public URL in the database.
+async function withUploadedImages<T extends Partial<Product>>(p: T): Promise<T> {
+  const next = { ...p };
+  if (typeof next.image === 'string') next.image = await resolveImage(next.image);
+  if (next.images) next.images = await Promise.all(next.images.map(resolveImage));
+  return next;
+}
+
 export type CatalogResult = { ok: true } | { ok: false; error: string };
 
 export function useProductCatalog() {
@@ -106,14 +119,14 @@ export function useProductCatalog() {
 
   // Mutations require an admin session — RLS rejects anyone else server-side.
   const addProduct = useCallback(async (product: Product): Promise<CatalogResult> => {
-    const { error } = await getSupabase().from('products').insert(toRow(product));
+    const { error } = await getSupabase().from('products').insert(toRow(await withUploadedImages(product)));
     if (error) return { ok: false, error: error.message };
     await refreshCatalog();
     return { ok: true };
   }, []);
 
   const updateProduct = useCallback(async (id: string, updates: Partial<Product>): Promise<CatalogResult> => {
-    const { error } = await getSupabase().from('products').update(toRow(updates)).eq('id', id);
+    const { error } = await getSupabase().from('products').update(toRow(await withUploadedImages(updates))).eq('id', id);
     if (error) return { ok: false, error: error.message };
     await refreshCatalog();
     return { ok: true };

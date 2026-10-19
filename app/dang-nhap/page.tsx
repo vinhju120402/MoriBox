@@ -10,7 +10,7 @@ import Starfield from '../../components/starfield';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, verifyMfa } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -25,6 +25,9 @@ export default function LoginPage() {
   }, []);
 
   const [submitting, setSubmitting] = useState(false);
+  // Accounts with two-factor authentication need a second step: the code from the authenticator app.
+  const [mfaStep, setMfaStep] = useState(false);
+  const [code, setCode] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,12 +37,31 @@ export default function LoginPage() {
     setSubmitting(false);
     if (!err) {
       router.push(redirectTo);
+    } else if (err === 'mfa_required') {
+      setMfaStep(true);
+    } else if (err === 'disabled') {
+      setError('Tài khoản này đã bị khóa. Vui lòng liên hệ cửa hàng.');
     } else if (err === 'email_not_confirmed') {
       setError('Email chưa được xác nhận. Vui lòng kiểm tra hộp thư của bạn.');
     } else if (err === 'invalid_credentials') {
       setError('Email hoặc mật khẩu không đúng.');
     } else {
       setError('Không thể đăng nhập lúc này. Vui lòng thử lại.');
+    }
+  };
+
+  const handleMfa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    const err = await verifyMfa(code);
+    setSubmitting(false);
+    if (!err) {
+      router.push(redirectTo);
+    } else if (err === 'invalid_code') {
+      setError('Mã không đúng hoặc đã hết hạn. Vui lòng thử lại.');
+    } else {
+      setError('Không thể xác thực lúc này. Vui lòng thử lại.');
     }
   };
 
@@ -127,10 +149,12 @@ export default function LoginPage() {
             }}
           >
             <h1 className="text-lg font-bold font-display text-center text-white">
-              Đăng nhập
+              {mfaStep ? 'Xác thực hai bước' : 'Đăng nhập'}
             </h1>
             <p className="text-xs text-center mt-1.5" style={{ color: 'rgba(255,255,255,0.7)' }}>
-              Cần đăng nhập để thêm vào giỏ hoặc mua hàng.
+              {mfaStep
+                ? 'Nhập mã 6 số trong ứng dụng xác thực (Google Authenticator, Authy…).'
+                : 'Cần đăng nhập để thêm vào giỏ hoặc mua hàng.'}
             </p>
 
             {error && (
@@ -140,6 +164,38 @@ export default function LoginPage() {
               </div>
             )}
 
+            {mfaStep ? (
+              <form onSubmit={handleMfa} className="mt-6 space-y-4">
+                <div>
+                  <label htmlFor="mfa-code" className="block text-xs font-semibold mb-1.5 text-white">Mã xác thực</label>
+                  <input
+                    id="mfa-code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    required
+                    autoFocus
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    className="w-full px-4 py-2.5 text-lg tracking-[0.4em] text-center rounded-xl text-white placeholder:text-white/30 focus:outline-none font-hud"
+                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)' }}
+                  />
+                </div>
+                <button type="submit" disabled={submitting || code.length < 6} className="btn-primary w-full py-2.5 text-sm font-semibold cursor-pointer">
+                  {submitting ? 'Đang xử lý…' : 'Xác nhận'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMfaStep(false); setCode(''); setError(''); }}
+                  className="w-full text-xs font-medium cursor-pointer"
+                  style={{ color: 'rgba(255,255,255,0.7)' }}
+                >
+                  Quay lại
+                </button>
+              </form>
+            ) : (
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <div>
                 <label htmlFor="email" className="block text-xs font-semibold mb-1.5 text-white">
@@ -196,6 +252,7 @@ export default function LoginPage() {
                 {submitting ? 'Đang xử lý…' : 'Đăng nhập'}
               </button>
             </form>
+            )}
 
             <p className="text-xs text-center mt-6" style={{ color: 'rgba(255,255,255,0.7)' }}>
               Chưa có tài khoản?{' '}

@@ -9,6 +9,7 @@ import {
 import Navbar from '../../components/navbar';
 import CartDrawer from '../../components/cart-drawer';
 import SiteFooter from '../../components/site-footer';
+import TwoFactor from '../../components/two-factor';
 import { useGatedCart } from '../../hooks/use-gated-cart';
 import { useTheme, ThemePreference } from '../../hooks/use-theme';
 import { useDisplay, TextSize } from '../../hooks/use-display';
@@ -351,6 +352,12 @@ export default function SettingsPage() {
                   <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{t('settings.security.storageBody')}</p>
                 </div>
               </div>
+
+              {user && isStaffRole(user.role) && (
+                <div className="mt-3">
+                  <TwoFactor />
+                </div>
+              )}
 
               <div className="mt-3 space-y-3">
                 <div className="card-surface p-4 flex items-center justify-between gap-4 flex-wrap">

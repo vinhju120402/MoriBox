@@ -8,7 +8,8 @@ import { CategoryLink } from '../app/data/products';
 import { useProductCatalog } from '../hooks/use-product-catalog';
 import { useLanguage } from '../hooks/use-language';
 import { useAuth } from '../hooks/use-auth';
-import { ADMIN_NAV_ITEMS } from '../lib/admin-nav';
+import { useAdminBadges } from '../hooks/use-admin-badges';
+import { ADMIN_NAV_ITEMS, groupedNav } from '../lib/admin-nav';
 import { can } from '../lib/permissions';
 
 interface NavbarProps {
@@ -36,6 +37,7 @@ export default function Navbar({
   const { products } = useProductCatalog();
   const { t } = useLanguage();
   const { role } = useAuth();
+  const badges = useAdminBadges();
 
   const flashSaleCount = products.filter(p => p.salePrice != null).length;
   const newArrivalsCount = products.filter(p => p.isNew).length;
@@ -147,25 +149,34 @@ export default function Navbar({
         <nav className="flex-1 overflow-y-auto px-5 py-5 space-y-1.5">
           {isStaff ? (
             <>
-              <p className="text-[11px] font-semibold uppercase tracking-wide px-1 mb-2" style={{ color: 'var(--text-muted)' }}>
-                {t('nav.adminMenu')}
-              </p>
-              {ADMIN_NAV_ITEMS.filter(item => can(role, item.permission)).map(item => {
-                const Icon = item.icon;
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.key}
-                    href={item.href}
-                    onClick={closeMobile}
-                    aria-current={isActive ? 'page' : undefined}
-                    className={`filter-pill w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold cursor-pointer${isActive ? ' active' : ''}`}
-                  >
-                    <Icon size={15} strokeWidth={2} />
-                    {item.label}
-                  </Link>
-                );
-              })}
+              {groupedNav(ADMIN_NAV_ITEMS.filter(item => can(role, item.permission))).map(group => (
+                <div key={group.group} className="space-y-1.5 mb-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide px-1" style={{ color: 'var(--text-muted)' }}>
+                    {group.group}
+                  </p>
+                  {group.items.map(item => {
+                    const Icon = item.icon;
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.key}
+                        href={item.href}
+                        onClick={closeMobile}
+                        aria-current={isActive ? 'page' : undefined}
+                        className={`filter-pill w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold cursor-pointer${isActive ? ' active' : ''}`}
+                      >
+                        <Icon size={15} strokeWidth={2} />
+                        {item.label}
+                        {(badges[item.key] ?? 0) > 0 && (
+                          <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: 'var(--accent)', color: '#fff' }}>
+                            {badges[item.key]}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ))}
             </>
           ) : (
           <>

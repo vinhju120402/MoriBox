@@ -1,34 +1,69 @@
 # MoriBox
 
-MoriBox is a Vietnamese Gunpla (Gundam model kit) e-commerce demo built with Next.js. It is fully client-side — no backend or database — and uses a light-only "premium product showcase" UI.
+Cửa hàng mô hình Gunpla (Gundam) bằng Next.js 16, dữ liệu và đăng nhập chạy trên Supabase.
 
-## Features
+## Tính năng
 
-- **Catalog** — browse across six grades (PG, MG, RG, HG, EG, SD), each with its own category page (`/danh-muc/[grade]`) with sorting (featured, price, difficulty).
-- **Home sections** — curated "Mô hình mới về" (new arrivals) and "Mô hình bán chạy" (best sellers), plus a "Hàng mới về" filtered view.
-- **Product detail pages** (`/san-pham/[id]`) — full spec sheet, quantity stepper, related-by-series and similar-by-grade product rails.
-- **Promo carousel** — auto-rotating campaign banner on the homepage, pauses on hover and under `prefers-reduced-motion`.
-- **Cart & checkout** — a 3-step cart drawer (cart → shipping info → confirmation), persisted to `localStorage` so it survives page reloads.
-- **Wishlist** — like/unlike products, persisted to `localStorage`.
-- **Accounts** — mock login/register (`/dang-nhap`, `/dang-ky`) backed by `localStorage`; adding to cart or buying requires being logged in.
-- **Stock awareness** — out-of-stock products are clearly marked and their purchase actions are disabled.
-- **Installable app (PWA)** — has a web app manifest and app icons, so it can be installed via "Add to Home Screen" (mobile) or the browser's install prompt (desktop). No service worker/offline caching (a caching service worker caused stale-JS hydration bugs in dev — see `components/sw-register.tsx`).
+**Khách hàng**
+- Danh mục theo hạng (PG, MG, RG, HG, EG, SD), trang chi tiết sản phẩm, Flash Sale, hàng mới về, bán chạy
+- Giỏ hàng, mã giảm giá, thanh toán COD hoặc chuyển khoản QR (VietQR)
+- **Đơn hàng của tôi** với các tab trạng thái, tự hủy đơn chưa thanh toán, yêu cầu hủy và hoàn tiền
+- Đăng ký, đăng nhập, quên mật khẩu, cài đặt (giao diện sáng/tối "Hangar", cỡ chữ, ngôn ngữ Việt/Anh, bảo mật)
 
-## Getting Started
+**Quản trị** (mỗi vai trò chỉ thấy phần của mình)
 
-Run the development server:
+| Vai trò | Quyền |
+|---|---|
+| Quản trị hệ thống | Tất cả: đơn hàng, đóng gói, kho, khuyến mãi, doanh thu, người dùng, nhật ký, cài đặt cửa hàng |
+| Thủ kho | Đóng gói và giao đơn, sản phẩm, tồn kho, nhập hàng, lịch sử biến động |
+| Kế toán | Đơn hàng, doanh thu, lợi nhuận, xác nhận đã nhận tiền, hoàn tiền, xác nhận đã giao |
+
+- Luồng đơn: chờ xử lý → đã đóng gói → đang giao → đã giao (hoặc đã hủy)
+- Kho: nhập hàng, lịch sử biến động, ngưỡng sắp hết riêng từng sản phẩm, giá vốn, nhập/xuất CSV, ảnh lên Supabase Storage
+- Doanh thu: chọn kỳ hoặc khoảng ngày, so kỳ trước, lợi nhuận gộp, theo phương thức thanh toán, sản phẩm bán chạy, xuất CSV
+- Khuyến mãi: mã giảm theo % hoặc số tiền, thời gian, đơn tối thiểu, giới hạn lượt dùng
+- Nhật ký thao tác, xác thực hai bước (TOTP) cho nhân viên, khóa tài khoản, email nhân viên cấp quyền trước
+- Thông báo đơn mới theo thời gian thực
+
+## Cài đặt
 
 ```bash
+npm install
+cp .env.example .env.local   # điền URL và publishable key của dự án Supabase
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Thiết lập Supabase (một lần)
 
-Other scripts:
+1. Tạo dự án trên [supabase.com](https://supabase.com), lấy **Project URL** và **publishable key** (Connect hoặc Project Settings → API Keys) điền vào `.env.local`.
+2. SQL Editor → chạy toàn bộ [`supabase/schema.sql`](supabase/schema.sql). File chạy lại an toàn, hãy chạy lại mỗi khi cập nhật code.
+3. Chạy [`supabase/seed.sql`](supabase/seed.sql) để có sản phẩm mẫu (tạo lại bằng `node scripts/generate-seed.mjs`).
+4. Authentication → Sign In / Providers → Email: tắt **Confirm email** khi phát triển, **bật lại khi bán thật**.
+5. Đăng ký một tài khoản trong app, rồi cấp quyền admin bằng SQL:
+   ```sql
+   update public.profiles set role = 'admin' where email = 'email-cua-ban@gmail.com';
+   ```
+   Sau đó thêm nhân viên ngay trong app: Quản trị → Người dùng.
+6. Vào **Cài đặt cửa hàng** để khai báo phí vận chuyển và tài khoản ngân hàng nhận chuyển khoản.
+
+## Bảo mật
+
+- Mọi quyền được ép ở cơ sở dữ liệu bằng Row Level Security và các hàm SQL kiểm tra vai trò; giao diện chỉ ẩn/hiện cho tiện.
+- Giá, tồn kho và mã giảm giá được tính lại phía server trong `place_order()`, không tin dữ liệu từ trình duyệt.
+- Giá vốn nằm trong bảng riêng chỉ nhân viên đọc được; báo cáo lợi nhuận tính bằng hàm phía server.
+- Không bao giờ đưa khóa `service_role` vào `NEXT_PUBLIC_*` hoặc vào Git. `.env.local` đã bị `.gitignore` chặn.
+
+## Chưa có
+
+- Cổng thanh toán MoMo, ZaloPay, VNPay, thẻ (cần tài khoản thương nhân và code phía server nhận callback)
+- Tự đối soát chuyển khoản (cần dịch vụ như SePay hoặc Casso), thông báo qua email hoặc Telegram
+- Giỏ hàng và yêu thích vẫn lưu trong trình duyệt, không đồng bộ giữa thiết bị
+
+## Lệnh
 
 ```bash
-npm run build      # production build
-npm run start      # run the production build
-npm run lint        # eslint
-npm run typecheck   # tsc --noEmit
+npm run dev        # chạy môi trường phát triển
+npm run build      # build production
+npm run typecheck  # kiểm tra kiểu
+npm run lint       # eslint
 ```

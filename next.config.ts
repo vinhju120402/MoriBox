@@ -1,5 +1,14 @@
 import type { NextConfig } from "next";
 
+// Host of the Supabase project (for next/image to accept Storage URLs).
+const supabaseHost = (() => {
+  try {
+    return process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : '';
+  } catch {
+    return '';
+  }
+})();
+
 const nextConfig: NextConfig = {
   // Dev only: lets the dev server serve its JS chunks/HMR socket when opened
   // from a phone on the same Wi-Fi via the machine's LAN IP (e.g. testing the
@@ -22,6 +31,10 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
+    // Product photos uploaded by staff live in the public Supabase Storage bucket.
+    remotePatterns: supabaseHost
+      ? [{ protocol: 'https', hostname: supabaseHost, pathname: '/storage/v1/object/public/**' }]
+      : [],
     // Local placeholder illustrations are hand-authored SVGs (no user-supplied
     // SVG uploads ever pass through here), so the usual SVG/XSS risk doesn't apply.
     dangerouslyAllowSVG: true,

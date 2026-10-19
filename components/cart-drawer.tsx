@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Product } from '@/app/data/products';
-import { X, Trash2, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, ShoppingBag } from 'lucide-react';
+import { X, Trash2, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, ShoppingBag, TicketPercent } from 'lucide-react';
 import ProductImage from './product-image';
-import { placeOrder, cancelOrder } from '../hooks/use-orders';
-import { PAYMENT_METHODS, PaymentMethodId, bankInfo, vietQrUrl } from '../lib/payments';
+import { placeOrder, cancelOrder, previewCoupon, describeOrderError } from '../hooks/use-orders';
+import { useShopSettings } from '../hooks/use-shop-settings';
+import { getPaymentMethods, PAYMENT_METHOD_FULL_LABEL, PaymentMethodId, vietQrUrl } from '../lib/payments';
 
 export interface CartItem {
   product: Product;
@@ -43,12 +44,40 @@ export default function CartDrawer({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>('cod');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const { settings } = useShopSettings();
+  const methods = getPaymentMethods(settings);
+  // Coupon: `appliedCoupon` is the code that was accepted; `couponDiscount` is
+  // what the database says it is worth on the current cart.
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState('');
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponError, setCouponError] = useState('');
+  const [couponBusy, setCouponBusy] = useState(false);
   const [shippingInfo, setShippingInfo] = useState({
     name: '',
     phone: '',
     address: '',
     sector: 'Hà Nội',
   });
+
+  // Keep the discount in step with the cart (quantities change, items get removed).
+  const cartSignature = cartItems.map(i => `${i.product.id}:${i.quantity}`).join('|');
+  useEffect(() => {
+    if (!appliedCoupon) return;
+    let cancelled = false;
+    previewCoupon(appliedCoupon, cartItems.map(i => ({ productId: i.product.id, quantity: i.quantity }))).then(r => {
+      if (cancelled) return;
+      if (r.ok) {
+        setCouponDiscount(r.discount);
+      } else {
+        setAppliedCoupon('');
+        setCouponDiscount(0);
+        setCouponError(describeOrderError(r.error));
+      }
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedCoupon, cartSignature]);
 
   if (!isOpen) return null;
 
@@ -59,17 +88,30 @@ export default function CartDrawer({
       return acc + itemPrice * item.quantity;
     }, 0);
 
-  const getShippingFee = () => (cartItems.length > 0 ? 30000 : 0);
-  const getTotal = () => getSubtotal() + getShippingFee();
+  const getShippingFee = () => (cartItems.length > 0 ? settings.shippingFee : 0);
+  const getTotal = () => getSubtotal() - couponDiscount + getShippingFee();
 
   /* ── Handlers ───────────────────────────────────── */
-  const orderErrorMessage = (raw: string) => {
-    if (raw.startsWith('insufficient_stock')) return `Sản phẩm "${raw.split(': ')[1] ?? ''}" không đủ hàng. Vui lòng giảm số lượng.`;
-    if (raw.startsWith('product_not_found')) return 'Có sản phẩm trong giỏ không còn được bán. Vui lòng xóa khỏi giỏ.';
-    if (raw.includes('not_authenticated')) return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
-    if (raw.includes('invalid_payment_method')) return 'Phương thức thanh toán này chưa khả dụng. Vui lòng chọn phương thức khác.';
-    if (raw.includes('missing_shipping_info')) return 'Vui lòng nhập đầy đủ thông tin giao hàng.';
-    return 'Không thể đặt hàng lúc này. Vui lòng thử lại.';
+  const applyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    setCouponError('');
+    setCouponBusy(true);
+    const r = await previewCoupon(code, cartItems.map(i => ({ productId: i.product.id, quantity: i.quantity })));
+    setCouponBusy(false);
+    if (!r.ok) {
+      setCouponError(r.error.includes('not_authenticated') ? 'Vui lòng đăng nhập để dùng mã giảm giá.' : describeOrderError(r.error));
+      return;
+    }
+    setAppliedCoupon(code);
+    setCouponDiscount(r.discount);
+    setCouponInput('');
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon('');
+    setCouponDiscount(0);
+    setCouponError('');
   };
 
   // Prices and stock are verified in the database (place_order), not trusted from here.
@@ -85,10 +127,11 @@ export default function CartDrawer({
       cartItems.map(item => ({ productId: item.product.id, quantity: item.quantity })),
       shippingInfo,
       paymentMethod,
+      appliedCoupon,
     );
     setSubmitting(false);
     if (!result.ok) {
-      setSubmitError(orderErrorMessage(result.error));
+      setSubmitError(describeOrderError(result.error));
       return;
     }
     setOrderCode(result.code);
@@ -116,6 +159,7 @@ export default function CartDrawer({
 
   const handleFinish = () => {
     onClearCart();
+    removeCoupon();
     setCancelled(false);
     setPlacedTotal(null);
     setCheckoutStep('cart');
@@ -364,7 +408,7 @@ export default function CartDrawer({
                     <legend className="block text-[11px] font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                       Phương thức thanh toán *
                     </legend>
-                    {PAYMENT_METHODS.map(m => {
+                    {methods.map(m => {
                       const selected = paymentMethod === m.id;
                       return (
                         <label
@@ -446,7 +490,7 @@ export default function CartDrawer({
                       { k: 'Điện thoại', v: shippingInfo.phone },
                       { k: 'Khu vực', v: shippingInfo.sector },
                       { k: 'Địa chỉ', v: shippingInfo.address },
-                      { k: 'Thanh toán', v: PAYMENT_METHODS.find(m => m.id === placedMethod)?.label ?? '' },
+                      { k: 'Thanh toán', v: PAYMENT_METHOD_FULL_LABEL[placedMethod] },
                     ].map(({ k, v }) => (
                       <div key={k} className="flex justify-between text-[11px] gap-2">
                         <span style={{ color: 'var(--text-secondary)' }}>{k}:</span>
@@ -473,16 +517,16 @@ export default function CartDrawer({
                       <p className="text-[11px] font-bold" style={{ color: 'var(--text-primary)' }}>Chuyển khoản để hoàn tất đơn hàng</p>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={vietQrUrl(placedTotal ?? getTotal(), orderCode)}
+                        src={vietQrUrl(settings, placedTotal ?? getTotal(), orderCode)}
                         alt={`Mã QR chuyển khoản ${(placedTotal ?? getTotal()).toLocaleString('vi-VN')}đ, nội dung ${orderCode}`}
                         width={220}
                         height={220}
                         className="mx-auto rounded-xl bg-white"
                       />
                       {[
-                        { k: 'Ngân hàng', v: bankInfo.bankName || bankInfo.bin },
-                        { k: 'Số tài khoản', v: bankInfo.account },
-                        { k: 'Chủ tài khoản', v: bankInfo.accountName },
+                        { k: 'Ngân hàng', v: settings.bankName || settings.bankBin },
+                        { k: 'Số tài khoản', v: settings.bankAccount },
+                        { k: 'Chủ tài khoản', v: settings.bankAccountName },
                         { k: 'Số tiền', v: `${(placedTotal ?? getTotal()).toLocaleString('vi-VN')}đ` },
                         { k: 'Nội dung', v: orderCode },
                       ].map(({ k, v }) => (
@@ -535,14 +579,48 @@ export default function CartDrawer({
                 className="px-5 py-4"
                 style={{ borderTop: '1px solid var(--border-subtle)' }}
               >
+                {/* Coupon */}
+                <div className="mb-4">
+                  {appliedCoupon ? (
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl" style={{ background: 'var(--accent-dim)' }}>
+                      <span className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--accent)' }}>
+                        <TicketPercent size={14} strokeWidth={2} /> {appliedCoupon}
+                      </span>
+                      <button onClick={removeCoupon} className="text-[11px] font-semibold cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
+                        Bỏ mã
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={(e) => { e.preventDefault(); void applyCoupon(); }} className="flex gap-2">
+                      <input
+                        value={couponInput}
+                        onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponError(''); }}
+                        placeholder="Mã giảm giá"
+                        aria-label="Mã giảm giá"
+                        maxLength={30}
+                        className={inputCls + ' flex-1 uppercase'}
+                      />
+                      <button
+                        type="submit"
+                        disabled={couponBusy || !couponInput.trim()}
+                        className="btn-outline px-4 text-xs font-semibold cursor-pointer"
+                      >
+                        {couponBusy ? '…' : 'Áp dụng'}
+                      </button>
+                    </form>
+                  )}
+                  {couponError && <p role="alert" className="text-[11px] font-medium mt-1.5" style={{ color: 'var(--danger)' }}>{couponError}</p>}
+                </div>
+
                 <div className="space-y-1.5 mb-4">
                   {[
                     { label: 'Tổng tiền hàng', value: getSubtotal() },
+                    ...(couponDiscount > 0 ? [{ label: `Giảm giá (${appliedCoupon})`, value: -couponDiscount }] : []),
                     { label: 'Phí vận chuyển', value: getShippingFee() },
                   ].map(({ label, value }) => (
                     <div key={label} className="flex justify-between text-[11px] font-medium">
                       <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                      <span style={{ color: 'var(--text-secondary)' }}>{value.toLocaleString('vi-VN')}đ</span>
+                      <span style={{ color: value < 0 ? '#16a34a' : 'var(--text-secondary)' }}>{value.toLocaleString('vi-VN')}đ</span>
                     </div>
                   ))}
                   <div

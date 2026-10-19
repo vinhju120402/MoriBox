@@ -1,14 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { Wallet, ReceiptText, Users, AlertTriangle, Hourglass, ChevronRight, CheckCircle2, Ban, Undo2, PackageX, BadgeCheck, Boxes, PackageCheck } from 'lucide-react';
+import { Wallet, ReceiptText, Users, AlertTriangle, Hourglass, ChevronRight, CheckCircle2, Ban, Undo2, PackageX, BadgeCheck, Boxes, PackageCheck, ClipboardList } from 'lucide-react';
 import AdminShell from '../../components/admin-shell';
 import AdminStat from '../../components/admin-stat';
 import ProductImage from '../../components/product-image';
 import { useOrders, Order } from '../../hooks/use-orders';
 import { useAllProfiles, useAuth } from '../../hooks/use-auth';
+import { useAdminBadges } from '../../hooks/use-admin-badges';
 import { useProductCatalog } from '../../hooks/use-product-catalog';
 import { can, ROLE_LABEL } from '../../lib/permissions';
+import { lowStockLevel } from '../data/products';
 import { PAYMENT_LABEL } from '../../lib/payments';
 
 const sameLocalDay = (a: Date, b: Date) =>
@@ -21,6 +23,7 @@ export default function AdminDashboardPage() {
   const { orders } = useOrders();
   const { products } = useProductCatalog();
   const { users } = useAllProfiles();
+  const badges = useAdminBadges();
 
   const showRevenue = can(role, 'revenue');
   const showUsers = can(role, 'users');
@@ -48,7 +51,7 @@ export default function AdminDashboardPage() {
   const flowTotal = flow.reduce((acc, seg) => acc + seg.value, 0);
 
   const outOfStock = products.filter(p => p.stock === 0);
-  const lowStock = products.filter(p => p.stock > 0 && p.stock <= 5).sort((a, b) => a.stock - b.stock);
+  const lowStock = products.filter(p => p.stock > 0 && p.stock <= lowStockLevel(p)).sort((a, b) => a.stock - b.stock);
   const needRestock = [...outOfStock, ...lowStock];
   const totalUnits = products.reduce((acc, p) => acc + p.stock, 0);
 
@@ -56,12 +59,17 @@ export default function AdminDashboardPage() {
   const cancelRequests = orders.filter(o => o.cancelRequested && o.status !== 'cancelled').length;
   const awaitingRefund = orders.filter(o => o.status === 'cancelled' && o.paymentStatus === 'paid').length;
 
+  const showOrders = can(role, 'orders');
+  const showPacking = can(role, 'packing');
+
   const tasks = [
+    showOrders && { href: '/admin/don-hang', icon: ClipboardList, label: 'Đơn đang chờ xử lý', count: badges['don-hang'] ?? 0 },
+    showPacking && { href: '/admin/dong-goi', icon: PackageCheck, label: 'Đơn cần đóng gói hoặc giao đi', count: badges['dong-goi'] ?? 0 },
     showRevenue && { href: '/admin/doanh-thu', icon: Hourglass, label: 'Đơn chờ xác nhận thu tiền', count: awaitingPayment.length },
     showRevenue && { href: '/admin/doanh-thu', icon: Ban, label: 'Khách yêu cầu hủy đơn', count: cancelRequests },
     showRevenue && { href: '/admin/doanh-thu', icon: Undo2, label: 'Đơn đã hủy chờ hoàn tiền', count: awaitingRefund },
     showInventory && { href: '/admin/kho', icon: PackageX, label: 'Sản phẩm hết hàng', count: outOfStock.length },
-    showInventory && { href: '/admin/kho', icon: AlertTriangle, label: 'Sản phẩm sắp hết (≤5)', count: lowStock.length },
+    showInventory && { href: '/admin/kho', icon: AlertTriangle, label: 'Sản phẩm sắp hết', count: lowStock.length },
   ].filter((x): x is { href: string; icon: typeof Hourglass; label: string; count: number } => !!x);
   const openTasks = tasks.reduce((acc, t) => acc + t.count, 0);
 
@@ -280,7 +288,7 @@ export default function AdminDashboardPage() {
                       <div className="mt-1.5 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border-subtle)' }} aria-hidden="true">
                         <div
                           className="h-full rounded-full"
-                          style={{ width: `${Math.max(out ? 0 : 8, (p.stock / 5) * 100)}%`, background: out ? 'var(--danger)' : '#f59e0b' }}
+                          style={{ width: `${Math.max(out ? 0 : 8, (p.stock / Math.max(1, lowStockLevel(p))) * 100)}%`, background: out ? 'var(--danger)' : '#f59e0b' }}
                         />
                       </div>
                     </div>

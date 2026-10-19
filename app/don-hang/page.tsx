@@ -10,7 +10,8 @@ import SiteFooter from '../../components/site-footer';
 import { useGatedCart } from '../../hooks/use-gated-cart';
 import { useOrders, Order } from '../../hooks/use-orders';
 import { useLanguage } from '../../hooks/use-language';
-import { PAYMENT_LABEL, bankInfo, bankConfigured, vietQrUrl } from '../../lib/payments';
+import { useShopSettings } from '../../hooks/use-shop-settings';
+import { PAYMENT_LABEL, isBankConfigured, vietQrUrl } from '../../lib/payments';
 import { GRADE_CATEGORIES } from '../data/products';
 
 const STATUS_LABEL: Record<Order['status'], string> = {
@@ -69,6 +70,8 @@ export default function MyOrdersPage() {
     isLoggedIn, isStaff, hasLoaded, user, logout,
   } = useGatedCart();
   const { orders, cancel } = useOrders();
+  const { settings } = useShopSettings();
+  const bankReady = isBankConfigured(settings);
   const [openQr, setOpenQr] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [tab, setTab] = useState<TabKey>('all');
@@ -175,7 +178,7 @@ export default function MyOrdersPage() {
             {visible.map(o => {
               const cancelled = o.status === 'cancelled';
               const canCancel = o.status === 'pending' && !cancelled && !o.cancelRequested;
-              const needsPayment = !cancelled && o.paymentStatus === 'unpaid' && o.paymentMethod === 'bank_transfer' && bankConfigured;
+              const needsPayment = !cancelled && o.paymentStatus === 'unpaid' && o.paymentMethod === 'bank_transfer' && bankReady;
               return (
                 <article key={o.id} className="card-surface p-5">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -205,6 +208,12 @@ export default function MyOrdersPage() {
                         <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{(i.price * i.quantity).toLocaleString('vi-VN')}đ</span>
                       </li>
                     ))}
+                    {o.discount > 0 && (
+                      <li className="flex justify-between gap-3 text-xs">
+                        <span style={{ color: 'var(--text-secondary)' }}>Giảm giá{o.couponCode ? ` (${o.couponCode})` : ''}</span>
+                        <span style={{ color: '#16a34a' }}>-{o.discount.toLocaleString('vi-VN')}đ</span>
+                      </li>
+                    )}
                     <li className="flex justify-between gap-3 text-xs">
                       <span style={{ color: 'var(--text-secondary)' }}>Phí vận chuyển</span>
                       <span style={{ color: 'var(--text-secondary)' }}>{o.shippingFee.toLocaleString('vi-VN')}đ</span>
@@ -223,9 +232,9 @@ export default function MyOrdersPage() {
                       {openQr === o.id && (
                         <div className="mt-3 p-4 rounded-2xl space-y-2" style={{ background: 'var(--bg-base)', border: '1px solid var(--border-subtle)' }}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={vietQrUrl(o.total, o.code)} alt={`Mã QR chuyển khoản ${o.total.toLocaleString('vi-VN')}đ, nội dung ${o.code}`} width={200} height={200} className="mx-auto rounded-xl bg-white" />
+                          <img src={vietQrUrl(settings, o.total, o.code)} alt={`Mã QR chuyển khoản ${o.total.toLocaleString('vi-VN')}đ, nội dung ${o.code}`} width={200} height={200} className="mx-auto rounded-xl bg-white" />
                           <p className="text-[11px] text-center" style={{ color: 'var(--text-secondary)' }}>
-                            {bankInfo.bankName || bankInfo.bin} · {bankInfo.account} · {bankInfo.accountName}
+                            {settings.bankName || settings.bankBin} · {settings.bankAccount} · {settings.bankAccountName}
                           </p>
                           <p className="text-[11px] text-center font-semibold" style={{ color: 'var(--danger)' }}>Nội dung chuyển khoản: {o.code}</p>
                         </div>

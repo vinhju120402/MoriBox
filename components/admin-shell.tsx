@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LogOut, Store, ShieldCheck, Menu, X } from 'lucide-react';
+import { LogOut, Store, ShieldCheck, Menu, X, BellRing } from 'lucide-react';
 import { useAuth } from '../hooks/use-auth';
+import { useAdminBadges } from '../hooks/use-admin-badges';
+import { notifyOrdersChanged } from '../hooks/use-orders';
+import { getSupabase } from '../lib/supabase';
 import { can, ROLE_LABEL } from '../lib/permissions';
-import { ADMIN_NAV_ITEMS as NAV_ITEMS, AdminNavKey } from '../lib/admin-nav';
+import { ADMIN_NAV_ITEMS as NAV_ITEMS, AdminNavKey, groupedNav } from '../lib/admin-nav';
 
 interface AdminShellProps {
   active: AdminNavKey;
@@ -22,6 +25,29 @@ export default function AdminShell({ active, title, description, actions, childr
   const { user, isLoggedIn, isStaff, role, hasLoaded, logout } = useAuth();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const badges = useAdminBadges();
+  const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
+
+  // New orders reach admins/accountants the moment they are placed (Supabase
+  // Realtime, filtered by the same row-level security as the tables). Every open
+  // orders table reloads, and a toast pops up.
+  useEffect(() => {
+    if (!can(role, 'orders')) return;
+    const supabase = getSupabase();
+    const channel = supabase
+      .channel('admin-orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
+        notifyOrdersChanged();
+        if (payload.eventType === 'INSERT') {
+          const code = (payload.new as { code?: string }).code ?? '';
+          const id = Date.now() + Math.random();
+          setToasts(t => [...t, { id, text: `Có đơn hàng mới ${code}` }]);
+          window.setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 8000);
+        }
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [role]);
 
   useEffect(() => {
     if (!hasLoaded) return;
@@ -57,7 +83,7 @@ export default function AdminShell({ active, title, description, actions, childr
     <div className="min-h-screen md:flex" style={{ background: 'var(--bg-base)' }}>
       {/* Mobile top bar — the sidebar becomes a drawer below md */}
       <header
-        className="md:hidden sticky top-0 z-30 flex items-center justify-between h-14 px-4"
+        className="md:hidden print:hidden sticky top-0 z-30 flex items-center justify-between h-14 px-4"
         style={{
           background: 'color-mix(in srgb, var(--bg-surface) 92%, transparent)',
           borderBottom: '1px solid var(--border-subtle)',
@@ -74,7 +100,7 @@ export default function AdminShell({ active, title, description, actions, childr
 
       {mobileOpen && (
         <div
-          className="md:hidden fixed inset-0 z-40"
+          className="md:hidden print:hidden fixed inset-0 z-40"
           style={{ background: 'rgba(15,17,19,0.5)' }}
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
@@ -84,7 +110,7 @@ export default function AdminShell({ active, title, description, actions, childr
       {/* Sidebar: pinned to the viewport on desktop, slide-in drawer on mobile */}
       <aside
         className={[
-          'fixed inset-y-0 left-0 z-50 w-64 flex flex-col transition-transform duration-300 ease-out',
+          'print:hidden fixed inset-y-0 left-0 z-50 w-64 flex flex-col transition-transform duration-300 ease-out',
           'md:sticky md:top-0 md:h-screen md:self-start md:z-auto md:translate-x-0 md:shrink-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
         ].join(' ')}
@@ -97,23 +123,37 @@ export default function AdminShell({ active, title, description, actions, childr
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-4 py-5 space-y-1.5" aria-label="Quản trị">
-          {allowedNav.map((item) => {
-            const Icon = item.icon;
-            const isActive = active === item.key;
-            return (
-              <Link
-                key={item.key}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                aria-current={isActive ? 'page' : undefined}
-                className={`filter-pill w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold cursor-pointer${isActive ? ' active' : ''}`}
-              >
-                <Icon size={15} strokeWidth={2} />
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 overflow-y-auto px-4 py-5 space-y-5" aria-label="Quản trị">
+          {groupedNav(allowedNav).map(group => (
+            <div key={group.group} className="space-y-1.5">
+              <p className="px-1 text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>{group.group}</p>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = active === item.key;
+                return (
+                  <Link
+                    key={item.key}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`filter-pill w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold cursor-pointer${isActive ? ' active' : ''}`}
+                  >
+                    <Icon size={15} strokeWidth={2} />
+                    {item.label}
+                    {(badges[item.key] ?? 0) > 0 && (
+                      <span
+                        className="ml-auto min-w-5 h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center"
+                        style={{ background: 'var(--accent)', color: '#fff' }}
+                        aria-label={`${badges[item.key]} việc cần xử lý`}
+                      >
+                        {badges[item.key]}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="px-4 py-5 space-y-2 shrink-0" style={{ borderTop: '1px solid var(--border-subtle)' }}>
@@ -145,7 +185,7 @@ export default function AdminShell({ active, title, description, actions, childr
 
       {/* Content */}
       <main className="flex-1 min-w-0">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10 print:max-w-none print:p-0">
           {allowed ? (
             <>
               <div className="mb-7 flex items-start justify-between gap-4 flex-wrap">
@@ -175,6 +215,21 @@ export default function AdminShell({ active, title, description, actions, childr
           )}
         </div>
       </main>
+
+      {/* New-order toasts */}
+      <div className="print:hidden fixed bottom-4 right-4 z-[300] flex flex-col gap-2" role="status" aria-live="polite">
+        {toasts.map(t => (
+          <Link
+            key={t.id}
+            href="/admin/don-hang"
+            className="card-surface flex items-center gap-3 px-4 py-3 shadow-lg"
+            style={{ borderColor: 'var(--accent)' }}
+          >
+            <BellRing size={16} strokeWidth={2} style={{ color: 'var(--accent)' }} />
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{t.text}</span>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
