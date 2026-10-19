@@ -54,7 +54,7 @@ function describe(row: AuditRow): string {
   if (typeof d.name === 'string') parts.push(d.name);
   if (typeof d.code === 'string') parts.push(`#${d.code}`);
   if (row.action === 'order.status') parts.push(`${fmt(d.from)} → ${fmt(d.to)}`);
-  if (row.action === 'order.payment') parts.push(`→ ${fmt(d.status)}`);
+  if (row.action === 'order.payment') parts.push(`→ ${fmt(d.status)}${d.note ? ` (${fmt(d.note)})` : ''}`);
   if (row.action === 'user.role') parts.push(`→ ${isRole(d.role) ? ROLE_LABEL[d.role] : fmt(d.role)}`);
   if (row.action === 'user.disabled') parts.push(d.disabled ? 'đã khóa' : 'đã mở khóa');
   if (row.action === 'staff_email.set') parts.push(`${row.target_id ?? ''} → ${isRole(d.role) ? ROLE_LABEL[d.role] : fmt(d.role)}`);

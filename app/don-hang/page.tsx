@@ -242,6 +242,12 @@ export default function MyOrdersPage() {
                     </div>
                   )}
 
+                  {o.paymentStatus === 'refunded' && (
+                    <p className="mt-4 p-3 rounded-xl text-xs leading-relaxed" style={{ background: 'rgba(34,197,94,0.12)', color: 'var(--text-primary)' }}>
+                      Shop đã hoàn lại {o.total.toLocaleString('vi-VN')}đ cho bạn.{o.refundNote ? ` Ghi chú: ${o.refundNote}` : ''}
+                    </p>
+                  )}
+
                   {(canCancel || o.cancelRequested) && !cancelled && (
                     <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border-subtle)' }}>
                       {o.cancelRequested ? (

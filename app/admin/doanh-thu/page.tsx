@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BadgeCheck, Hourglass, Undo2, Receipt, Search, TrendingUp, Download } from 'lucide-react';
+import { BadgeCheck, Hourglass, Undo2, Receipt, Search, TrendingUp, Download, X } from 'lucide-react';
 import AdminShell from '../../../components/admin-shell';
 import AdminStat from '../../../components/admin-stat';
 import RevenueChart from '../../../components/revenue-chart';
@@ -55,6 +55,10 @@ export default function AdminRevenuePage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [refunding, setRefunding] = useState<Order | null>(null);
+  const [refundNote, setRefundNote] = useState('');
+  const [refundBusy, setRefundBusy] = useState(false);
+  const [refundError, setRefundError] = useState('');
   const [profit, setProfit] = useState<{ itemsRevenue: number; discounts: number; cogs: number } | null>(null);
 
   // ── Selected range and the equally long range right before it ─────
@@ -147,13 +151,26 @@ export default function AdminRevenuePage() {
     if (!r.ok) window.alert('Không thể hủy đơn này (có thể đã giao hàng). Vui lòng thử lại.');
   };
 
+  const openRefund = (o: Order) => { setRefundNote(''); setRefundError(''); setRefunding(o); };
+
+  const submitRefund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!refunding) return;
+    if (refundNote.trim().length < 3) { setRefundError('Hãy ghi mã giao dịch hoặc tài khoản đã chuyển hoàn.'); return; }
+    setRefundBusy(true);
+    const ok = await setPaymentStatus(refunding.id, 'refunded', refundNote);
+    setRefundBusy(false);
+    if (!ok) { setRefundError('Không thể cập nhật. Vui lòng thử lại.'); return; }
+    setRefunding(null);
+  };
+
   const exportCsv = () => {
     downloadCsv(`don-hang-${inputDate(start)}_${inputDate(end)}.csv`, [
-      ['Mã đơn', 'Ngày', 'Khách hàng', 'Email', 'Điện thoại', 'Số sản phẩm', 'Tạm tính', 'Giảm giá', 'Mã giảm giá', 'Phí vận chuyển', 'Tổng tiền', 'Thanh toán', 'Trạng thái thanh toán', 'Trạng thái đơn'],
+      ['Mã đơn', 'Ngày', 'Khách hàng', 'Email', 'Điện thoại', 'Số sản phẩm', 'Tạm tính', 'Giảm giá', 'Mã giảm giá', 'Phí vận chuyển', 'Tổng tiền', 'Thanh toán', 'Trạng thái thanh toán', 'Trạng thái đơn', 'Ghi chú hoàn tiền'],
       ...rows.map(o => [
         o.code, new Date(o.date).toLocaleString('vi-VN'), o.customerName, o.customerEmail, o.phone,
         o.items.reduce((acc, i) => acc + i.quantity, 0), o.subtotal, o.discount, o.couponCode ?? '', o.shippingFee, o.total,
-        PAYMENT_LABEL[o.paymentMethod], PAYMENT_STATUS_LABEL[o.paymentStatus], STATUS_LABEL[o.status] ?? o.status,
+        PAYMENT_LABEL[o.paymentMethod], PAYMENT_STATUS_LABEL[o.paymentStatus], STATUS_LABEL[o.status] ?? o.status, o.refundNote ?? '',
       ]),
     ]);
   };
@@ -355,7 +372,10 @@ export default function AdminRevenuePage() {
                             <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}>Chờ hoàn tiền</span>
                           )}
                           {o.paymentStatus === 'refunded' && (
-                            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(34,197,94,0.15)', color: '#16a34a' }}>Đã hoàn tiền</span>
+                            <>
+                              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(34,197,94,0.15)', color: '#16a34a' }}>Đã hoàn tiền</span>
+                              {o.refundNote && <p className="text-[10px] mt-1 max-w-[16rem] whitespace-normal" style={{ color: 'var(--text-muted)' }}>Ghi chú: {o.refundNote}</p>}
+                            </>
                           )}
                         </>
                       ) : (
@@ -399,10 +419,7 @@ export default function AdminRevenuePage() {
                         )}
                         {o.status === 'cancelled' && o.paymentStatus === 'paid' && (
                           <button
-                            onClick={async () => {
-                              if (!window.confirm(`Bạn đã chuyển lại ${money(o.total)} cho khách (đơn ${o.code})?`)) return;
-                              if (!(await setPaymentStatus(o.id, 'refunded'))) window.alert('Không thể cập nhật. Vui lòng thử lại.');
-                            }}
+                            onClick={() => openRefund(o)}
                             className="btn-outline px-3 py-1 text-[10px] font-semibold cursor-pointer whitespace-nowrap"
                           >
                             Đã hoàn tiền
@@ -418,6 +435,44 @@ export default function AdminRevenuePage() {
         </div>
         <Pagination page={page} total={rows.length} onChange={setPage} />
       </div>
+
+      {refunding && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ background: 'rgba(20,22,26,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => !refundBusy && setRefunding(null)}>
+          <div className="card-surface w-full max-w-md p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Xác nhận hoàn tiền">
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-base font-bold font-display" style={{ color: 'var(--text-primary)' }}>Xác nhận đã hoàn tiền</h2>
+              <button onClick={() => setRefunding(null)} className="btn-ghost p-1.5 cursor-pointer" aria-label="Đóng"><X size={18} strokeWidth={2} /></button>
+            </div>
+            <p className="text-xs mb-4 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              Đơn {refunding.code} · {refunding.customerName} · hoàn <strong style={{ color: 'var(--text-primary)' }}>{money(refunding.total)}</strong>.
+              Chỉ bấm xác nhận sau khi bạn đã chuyển tiền cho khách.
+            </p>
+            {refundError && <p role="alert" className="mb-3 p-3 rounded-xl text-xs font-medium" style={{ background: 'rgba(214,69,80,0.1)', color: 'var(--danger)' }}>{refundError}</p>}
+            <form onSubmit={submitRefund} className="space-y-4">
+              <div>
+                <label htmlFor="refund-note" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  Ghi chú hoàn tiền (mã giao dịch, tài khoản nhận…) *
+                </label>
+                <textarea
+                  id="refund-note"
+                  required
+                  autoFocus
+                  rows={3}
+                  maxLength={300}
+                  value={refundNote}
+                  onChange={(e) => setRefundNote(e.target.value)}
+                  placeholder="VD: Chuyển MB Bank, STK 0123456789 (NGUYEN VAN A), mã GD FT26101912345"
+                  className="input-field w-full px-3 py-2.5 text-sm rounded-xl resize-none"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setRefunding(null)} disabled={refundBusy} className="btn-outline flex-1 py-2.5 text-sm font-semibold cursor-pointer">Hủy</button>
+                <button type="submit" disabled={refundBusy} className="btn-primary flex-1 py-2.5 text-sm font-semibold cursor-pointer">{refundBusy ? 'Đang lưu…' : 'Xác nhận đã hoàn'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </AdminShell>
   );
 }

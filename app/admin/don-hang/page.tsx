@@ -211,6 +211,9 @@ export default function AdminOrdersPage() {
                           <span style={{ color: 'var(--text-muted)' }}>Thanh toán: </span>
                           {PAYMENT_LABEL[o.paymentMethod]} · {PAYMENT_STATUS_LABEL[o.paymentStatus]}
                         </p>
+                        {o.paymentStatus === 'refunded' && o.refundNote && (
+                          <p style={{ color: 'var(--text-secondary)' }}><span style={{ color: 'var(--text-muted)' }}>Ghi chú hoàn tiền: </span>{o.refundNote}</p>
+                        )}
                         {waitingPayment && (
                           <p className="font-medium" style={{ color: 'var(--accent)' }}>Chờ nhận tiền chuyển khoản trước khi đóng gói.</p>
                         )}

@@ -38,6 +38,8 @@ export interface Order {
   statusUpdatedAt: string | null;
   /** Customer asked to cancel an order they had already paid for. */
   cancelRequested: boolean;
+  /** Written by staff when the refund was paid back (transaction code, account…). */
+  refundNote: string | null;
 }
 
 interface OrderRow {
@@ -46,6 +48,7 @@ interface OrderRow {
   status: OrderStatus;
   status_updated_at: string | null;
   cancel_requested_at: string | null;
+  refund_note: string | null;
   code: string;
   created_at: string;
   customer_name: string;
@@ -65,7 +68,7 @@ interface OrderRow {
 
 // Explicit columns: `order_items.cost` is hidden from API clients, so `*` would be rejected.
 const ORDER_SELECT =
-  'id, user_id, code, status, status_updated_at, cancel_requested_at, created_at, customer_name, customer_email, ' +
+  'id, user_id, code, status, status_updated_at, cancel_requested_at, refund_note, created_at, customer_name, customer_email, ' +
   'phone, address, sector, subtotal, discount, coupon_code, shipping_fee, total, payment_method, payment_status, ' +
   'order_items(id, product_id, name, grade, price, quantity)';
 
@@ -75,6 +78,7 @@ const fromRow = (r: OrderRow): Order => ({
   status: r.status,
   statusUpdatedAt: r.status_updated_at,
   cancelRequested: !!r.cancel_requested_at,
+  refundNote: r.refund_note,
   code: r.code,
   date: r.created_at,
   customerName: r.customer_name,
@@ -141,8 +145,8 @@ export function useOrders() {
   const reload = () => setVersion(v => v + 1);
 
   // Admin/accountant only (enforced by set_order_payment in the database).
-  const setPaymentStatus = async (orderId: string, status: PaymentStatus): Promise<boolean> => {
-    const { error } = await getSupabase().rpc('set_order_payment', { p_order_id: orderId, p_status: status });
+  const setPaymentStatus = async (orderId: string, status: PaymentStatus, note?: string): Promise<boolean> => {
+    const { error } = await getSupabase().rpc('set_order_payment', { p_order_id: orderId, p_status: status, p_note: note ?? null });
     if (error) return false;
     reload();
     return true;

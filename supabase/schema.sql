@@ -258,6 +258,9 @@ alter table public.orders add column if not exists cancel_requested_at timestamp
 alter table public.orders add column if not exists discount integer not null default 0 check (discount >= 0);
 alter table public.orders add column if not exists coupon_code text;
 alter table public.orders add column if not exists status_updated_at timestamptz;
+-- Filled in by staff when they pay a refund back (transaction code, receiving account...).
+alter table public.orders add column if not exists refund_note text;
+alter table public.orders add column if not exists refunded_at timestamptz;
 
 -- Unit cost snapshot (for profit). Customers can never read this column: see the
 -- column grants below, and the admin/accountant read profit through get_profit().
@@ -803,12 +806,17 @@ grant execute on function public.set_user_role(uuid, text) to authenticated;
 -- Admin and accountant mark an order paid (COD: after delivery; bank transfer:
 -- once the money has arrived) or refunded. Done through this function so the
 -- accountant can confirm payments without being able to edit anything else.
-create or replace function public.set_order_payment(p_order_id uuid, p_status text)
+-- Signature changed (added p_note), so drop the old overload first.
+drop function if exists public.set_order_payment(uuid, text);
+
+create or replace function public.set_order_payment(p_order_id uuid, p_status text, p_note text default null)
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_note text := nullif(trim(coalesce(p_note, '')), '');
 begin
   if not public.has_role(array['admin','accountant']) then
     raise exception 'forbidden' using errcode = '42501';
@@ -821,14 +829,17 @@ begin
   end if;
   update public.orders
      set payment_status = p_status,
-         paid_at = case when p_status = 'paid' then now() else null end
+         paid_at = case when p_status = 'paid' then now() else null end,
+         refund_note = case when p_status = 'refunded' then v_note else null end,
+         refunded_at = case when p_status = 'refunded' then now() else null end
    where id = p_order_id;
-  perform public.write_audit('order.payment', 'order', p_order_id::text, jsonb_build_object('status', p_status));
+  perform public.write_audit('order.payment', 'order', p_order_id::text,
+    jsonb_build_object('status', p_status, 'note', v_note));
 end;
 $$;
 
-revoke all on function public.set_order_payment(uuid, text) from public, anon;
-grant execute on function public.set_order_payment(uuid, text) to authenticated;
+revoke all on function public.set_order_payment(uuid, text, text) from public, anon;
+grant execute on function public.set_order_payment(uuid, text, text) to authenticated;
 
 -- ───────────────────────── Cancelling an order ─────────────────────────
 -- Returns 'cancelled' or 'requested'.
