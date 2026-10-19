@@ -31,7 +31,7 @@ export default function Home() {
     user,
     logout,
   } = useGatedCart();
-  const { showOnboarding, completeOnboarding, restartOnboarding } = useOnboarding();
+  const { showOnboarding, completeOnboarding } = useOnboarding();
   const { products } = useProductCatalog();
   const { t } = useLanguage();
 
@@ -51,9 +51,7 @@ export default function Home() {
         isLoggedIn={isLoggedIn}
         isStaff={isStaff}
         userName={user?.name}
-        onLogout={logout}
-        onShowIntro={restartOnboarding}
-      />
+        onLogout={logout}      />
 
       <div className="lg:pl-72 flex flex-col min-h-screen">
 

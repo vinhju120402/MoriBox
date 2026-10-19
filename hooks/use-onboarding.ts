@@ -9,7 +9,6 @@ export function useOnboarding() {
   const [showOnboarding, setShowOnboarding] = useState(true);
 
   const completeOnboarding = () => setShowOnboarding(false);
-  const restartOnboarding = () => setShowOnboarding(true);
 
-  return { showOnboarding, completeOnboarding, restartOnboarding };
+  return { showOnboarding, completeOnboarding };
 }

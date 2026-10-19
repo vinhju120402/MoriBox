@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { Product } from '@/app/data/products';
 import { X, Trash2, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, ShoppingBag } from 'lucide-react';
 import ProductImage from './product-image';
-import { placeOrder } from '../hooks/use-orders';
+import { placeOrder, cancelOrder } from '../hooks/use-orders';
+import { PAYMENT_METHODS, PaymentMethodId, bankInfo, vietQrUrl } from '../lib/payments';
 
 export interface CartItem {
   product: Product;
@@ -33,6 +34,13 @@ export default function CartDrawer({
 }: CartDrawerProps) {
   const [checkoutStep, setCheckoutStep] = useState<'cart' | 'shipping' | 'success'>('cart');
   const [orderCode, setOrderCode] = useState('');
+  const [placedTotal, setPlacedTotal] = useState<number | null>(null);
+  const [placedOrderId, setPlacedOrderId] = useState('');
+  const [cancelled, setCancelled] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState('');
+  const [placedMethod, setPlacedMethod] = useState<PaymentMethodId>('cod');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>('cod');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [shippingInfo, setShippingInfo] = useState({
@@ -59,6 +67,7 @@ export default function CartDrawer({
     if (raw.startsWith('insufficient_stock')) return `Sản phẩm "${raw.split(': ')[1] ?? ''}" không đủ hàng. Vui lòng giảm số lượng.`;
     if (raw.startsWith('product_not_found')) return 'Có sản phẩm trong giỏ không còn được bán. Vui lòng xóa khỏi giỏ.';
     if (raw.includes('not_authenticated')) return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    if (raw.includes('invalid_payment_method')) return 'Phương thức thanh toán này chưa khả dụng. Vui lòng chọn phương thức khác.';
     if (raw.includes('missing_shipping_info')) return 'Vui lòng nhập đầy đủ thông tin giao hàng.';
     return 'Không thể đặt hàng lúc này. Vui lòng thử lại.';
   };
@@ -75,6 +84,7 @@ export default function CartDrawer({
     const result = await placeOrder(
       cartItems.map(item => ({ productId: item.product.id, quantity: item.quantity })),
       shippingInfo,
+      paymentMethod,
     );
     setSubmitting(false);
     if (!result.ok) {
@@ -82,11 +92,32 @@ export default function CartDrawer({
       return;
     }
     setOrderCode(result.code);
+    setPlacedTotal(result.total);
+    setPlacedOrderId(result.orderId);
+    setCancelled(false);
+    setCancelError('');
+    setPlacedMethod(paymentMethod);
     setCheckoutStep('success');
+  };
+
+  // Customer changed their mind right after ordering (e.g. QR shown, not paid yet).
+  const handleCancelOrder = async () => {
+    if (!window.confirm('Bạn chắc chắn muốn hủy đơn hàng này?')) return;
+    setCancelError('');
+    setCancelling(true);
+    const result = await cancelOrder(placedOrderId);
+    setCancelling(false);
+    if (!result.ok) {
+      setCancelError('Không thể hủy đơn lúc này. Vui lòng thử lại hoặc vào "Đơn hàng của tôi".');
+      return;
+    }
+    setCancelled(true);
   };
 
   const handleFinish = () => {
     onClearCart();
+    setCancelled(false);
+    setPlacedTotal(null);
     setCheckoutStep('cart');
     onClose();
   };
@@ -328,6 +359,47 @@ export default function CartDrawer({
                     </div>
                   </div>
 
+                  {/* Payment method */}
+                  <fieldset className="flex flex-col gap-2">
+                    <legend className="block text-[11px] font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                      Phương thức thanh toán *
+                    </legend>
+                    {PAYMENT_METHODS.map(m => {
+                      const selected = paymentMethod === m.id;
+                      return (
+                        <label
+                          key={m.id}
+                          className={`flex items-start gap-3 p-3 rounded-2xl ${m.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-55'}`}
+                          style={{
+                            border: `1px solid ${selected ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                            background: selected ? 'var(--accent-dim)' : 'transparent',
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="payment-method"
+                            value={m.id}
+                            checked={selected}
+                            disabled={!m.available}
+                            onChange={() => setPaymentMethod(m.id)}
+                            className="mt-0.5 accent-[var(--accent)]"
+                          />
+                          <span className="flex-1">
+                            <span className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                              {m.label}
+                              {!m.available && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold" style={{ background: 'var(--bg-base)', color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}>
+                                  Sắp ra mắt
+                                </span>
+                              )}
+                            </span>
+                            <span className="block text-[11px] mt-0.5 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{m.description}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </fieldset>
+
                   {submitError && (
                     <p role="alert" className="text-xs font-medium" style={{ color: 'var(--danger)' }}>{submitError}</p>
                   )}
@@ -354,7 +426,7 @@ export default function CartDrawer({
 
                   <div>
                     <h3 className="text-base font-bold font-display" style={{ color: 'var(--text-primary)' }}>
-                      Đặt hàng thành công
+                      {cancelled ? 'Đơn hàng đã được hủy' : 'Đặt hàng thành công'}
                     </h3>
                     <p className="text-[11px] mt-1 font-semibold" style={{ color: 'var(--accent)' }}>
                       Mã đơn: #{orderCode}
@@ -374,6 +446,7 @@ export default function CartDrawer({
                       { k: 'Điện thoại', v: shippingInfo.phone },
                       { k: 'Khu vực', v: shippingInfo.sector },
                       { k: 'Địa chỉ', v: shippingInfo.address },
+                      { k: 'Thanh toán', v: PAYMENT_METHODS.find(m => m.id === placedMethod)?.label ?? '' },
                     ].map(({ k, v }) => (
                       <div key={k} className="flex justify-between text-[11px] gap-2">
                         <span style={{ color: 'var(--text-secondary)' }}>{k}:</span>
@@ -385,13 +458,66 @@ export default function CartDrawer({
                       style={{ borderTop: '1px solid var(--border-subtle)', color: 'var(--accent)' }}
                     >
                       <span style={{ color: 'var(--text-secondary)' }}>Tổng cộng:</span>
-                      <span>{getTotal().toLocaleString('vi-VN')}đ</span>
+                      <span>{(placedTotal ?? getTotal()).toLocaleString('vi-VN')}đ</span>
                     </div>
                   </div>
 
+                  {!cancelled && placedMethod === 'cod' && (
+                    <p className="w-full text-left text-[11px] leading-relaxed p-3 rounded-2xl" style={{ background: 'var(--accent-dim)', color: 'var(--text-primary)' }}>
+                      Bạn sẽ thanh toán <strong>{(placedTotal ?? getTotal()).toLocaleString('vi-VN')}đ</strong> bằng tiền mặt cho người giao hàng khi nhận hàng.
+                    </p>
+                  )}
+
+                  {!cancelled && placedMethod === 'bank_transfer' && (
+                    <div className="w-full text-left p-4 rounded-2xl space-y-3" style={{ background: 'var(--bg-base)', border: '1px solid var(--border-subtle)' }}>
+                      <p className="text-[11px] font-bold" style={{ color: 'var(--text-primary)' }}>Chuyển khoản để hoàn tất đơn hàng</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={vietQrUrl(placedTotal ?? getTotal(), orderCode)}
+                        alt={`Mã QR chuyển khoản ${(placedTotal ?? getTotal()).toLocaleString('vi-VN')}đ, nội dung ${orderCode}`}
+                        width={220}
+                        height={220}
+                        className="mx-auto rounded-xl bg-white"
+                      />
+                      {[
+                        { k: 'Ngân hàng', v: bankInfo.bankName || bankInfo.bin },
+                        { k: 'Số tài khoản', v: bankInfo.account },
+                        { k: 'Chủ tài khoản', v: bankInfo.accountName },
+                        { k: 'Số tiền', v: `${(placedTotal ?? getTotal()).toLocaleString('vi-VN')}đ` },
+                        { k: 'Nội dung', v: orderCode },
+                      ].map(({ k, v }) => (
+                        <div key={k} className="flex justify-between text-[11px] gap-2">
+                          <span style={{ color: 'var(--text-secondary)' }}>{k}:</span>
+                          <span className="font-semibold text-right" style={{ color: 'var(--text-primary)' }}>{v}</span>
+                        </div>
+                      ))}
+                      <p className="text-[10px] leading-relaxed" style={{ color: 'var(--danger)' }}>
+                        Vui lòng nhập đúng nội dung chuyển khoản để shop xác nhận đơn. Đơn được xử lý sau khi shop nhận được tiền.
+                      </p>
+                    </div>
+                  )}
+
                   <p className="text-[11px] leading-relaxed max-w-xs" style={{ color: 'var(--text-secondary)' }}>
-                    Cảm ơn bạn đã mua sắm tại MoriBox. Đơn hàng đang được xử lý và chuẩn bị linh kiện.
+                    {cancelled
+                      ? 'Đơn hàng đã được hủy và sản phẩm được trả lại kho. Nếu bạn đã chuyển khoản, vui lòng đừng chuyển nữa.'
+                      : 'Cảm ơn bạn đã mua sắm tại MoriBox. Đơn hàng đang được xử lý và chuẩn bị linh kiện.'}
                   </p>
+
+                  {!cancelled && (
+                    <div className="w-full">
+                      {cancelError && (
+                        <p role="alert" className="text-[11px] font-medium mb-2" style={{ color: 'var(--danger)' }}>{cancelError}</p>
+                      )}
+                      <button
+                        onClick={handleCancelOrder}
+                        disabled={cancelling}
+                        className="w-full py-2.5 text-xs font-semibold rounded-full cursor-pointer disabled:opacity-50"
+                        style={{ border: '1px solid var(--danger)', color: 'var(--danger)' }}
+                      >
+                        {cancelling ? 'Đang hủy…' : 'Hủy đơn hàng này'}
+                      </button>
+                    </div>
+                  )}
 
                   <button
                     onClick={handleFinish}

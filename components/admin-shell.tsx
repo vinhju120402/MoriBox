@@ -1,27 +1,27 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, Boxes, Users, LineChart, LogOut, Store, ShieldCheck } from 'lucide-react';
+import { LogOut, Store, ShieldCheck, Menu, X } from 'lucide-react';
 import { useAuth } from '../hooks/use-auth';
-import { can, Permission, ROLE_LABEL } from '../lib/permissions';
-
-const NAV_ITEMS = [
-  { key: 'dashboard', href: '/admin', label: 'Tổng quan', icon: LayoutDashboard, permission: 'dashboard' },
-  { key: 'kho', href: '/admin/kho', label: 'Kho hàng', icon: Boxes, permission: 'inventory' },
-  { key: 'nguoi-dung', href: '/admin/nguoi-dung', label: 'Người dùng', icon: Users, permission: 'users' },
-  { key: 'doanh-thu', href: '/admin/doanh-thu', label: 'Doanh thu', icon: LineChart, permission: 'revenue' },
-] as const satisfies readonly { key: string; href: string; label: string; icon: unknown; permission: Permission }[];
+import { can, ROLE_LABEL } from '../lib/permissions';
+import { ADMIN_NAV_ITEMS as NAV_ITEMS, AdminNavKey } from '../lib/admin-nav';
 
 interface AdminShellProps {
-  active: (typeof NAV_ITEMS)[number]['key'];
+  active: AdminNavKey;
+  /** Page heading — rendered by the shell so every admin page looks the same. */
+  title: string;
+  description?: string;
+  /** Right-aligned buttons next to the heading (e.g. "Thêm sản phẩm"). */
+  actions?: React.ReactNode;
   children: React.ReactNode;
 }
 
-export default function AdminShell({ active, children }: AdminShellProps) {
+export default function AdminShell({ active, title, description, actions, children }: AdminShellProps) {
   const { user, isLoggedIn, isStaff, role, hasLoaded, logout } = useAuth();
   const router = useRouter();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     if (!hasLoaded) return;
@@ -41,26 +41,63 @@ export default function AdminShell({ active, children }: AdminShellProps) {
   const activeItem = NAV_ITEMS.find(item => item.key === active);
   const allowed = !!activeItem && can(role, activeItem.permission);
 
+  const brand = (
+    <span className="flex items-center gap-2.5">
+      <span
+        className="w-8 h-8 flex items-center justify-center rounded-xl"
+        style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}
+      >
+        <ShieldCheck size={16} strokeWidth={2} />
+      </span>
+      <span className="text-sm font-bold tracking-tight font-display" style={{ color: 'var(--text-primary)' }}>MoriBox Admin</span>
+    </span>
+  );
+
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--bg-base)' }}>
-      {/* Sidebar */}
+    <div className="min-h-screen md:flex" style={{ background: 'var(--bg-base)' }}>
+      {/* Mobile top bar — the sidebar becomes a drawer below md */}
+      <header
+        className="md:hidden sticky top-0 z-30 flex items-center justify-between h-14 px-4"
+        style={{
+          background: 'color-mix(in srgb, var(--bg-surface) 92%, transparent)',
+          borderBottom: '1px solid var(--border-subtle)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+        }}
+      >
+        <button onClick={() => setMobileOpen(true)} aria-label="Mở menu" className="btn-ghost p-2 cursor-pointer">
+          <Menu size={20} strokeWidth={2} />
+        </button>
+        {brand}
+        <span className="w-9" aria-hidden="true" />
+      </header>
+
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40"
+          style={{ background: 'rgba(15,17,19,0.5)' }}
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar: pinned to the viewport on desktop, slide-in drawer on mobile */}
       <aside
-        className="hidden md:flex w-64 shrink-0 flex-col"
+        className={[
+          'fixed inset-y-0 left-0 z-50 w-64 flex flex-col transition-transform duration-300 ease-out',
+          'md:sticky md:top-0 md:h-screen md:self-start md:z-auto md:translate-x-0 md:shrink-0',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full',
+        ].join(' ')}
         style={{ background: 'var(--bg-surface)', borderRight: '1px solid var(--border-subtle)' }}
       >
-        <div className="flex items-center gap-2.5 px-5 h-16 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-          <div
-            className="w-8 h-8 flex items-center justify-center rounded-full"
-            style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}
-          >
-            <ShieldCheck size={16} strokeWidth={2} />
-          </div>
-          <h1 className="text-sm font-bold tracking-tight font-display" style={{ color: 'var(--text-primary)' }}>
-            MoriBox Admin
-          </h1>
+        <div className="flex items-center justify-between px-5 h-16 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+          {brand}
+          <button onClick={() => setMobileOpen(false)} aria-label="Đóng menu" className="md:hidden btn-ghost p-1.5 cursor-pointer">
+            <X size={18} strokeWidth={2} />
+          </button>
         </div>
 
-        <nav className="flex-1 px-4 py-5 space-y-1.5">
+        <nav className="flex-1 overflow-y-auto px-4 py-5 space-y-1.5" aria-label="Quản trị">
           {allowedNav.map((item) => {
             const Icon = item.icon;
             const isActive = active === item.key;
@@ -68,6 +105,8 @@ export default function AdminShell({ active, children }: AdminShellProps) {
               <Link
                 key={item.key}
                 href={item.href}
+                onClick={() => setMobileOpen(false)}
+                aria-current={isActive ? 'page' : undefined}
                 className={`filter-pill w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold cursor-pointer${isActive ? ' active' : ''}`}
               >
                 <Icon size={15} strokeWidth={2} />
@@ -77,20 +116,16 @@ export default function AdminShell({ active, children }: AdminShellProps) {
           })}
         </nav>
 
-        <div className="px-4 py-5 space-y-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-          <p className="px-1 text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-            {user?.name}
-          </p>
-          <p className="px-1 text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
-            {user?.email}
-          </p>
-          {role && (
-            <p className="px-1 mb-1">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}>
+        <div className="px-4 py-5 space-y-2 shrink-0" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          <div className="px-1">
+            <p className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{user?.name || 'Tài khoản'}</p>
+            <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
+            {role && (
+              <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}>
                 {ROLE_LABEL[role]}
               </span>
-            </p>
-          )}
+            )}
+          </div>
           <Link
             href="/"
             className="btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold cursor-pointer"
@@ -99,7 +134,7 @@ export default function AdminShell({ active, children }: AdminShellProps) {
             <Store size={13} strokeWidth={2} /> Về cửa hàng
           </Link>
           <button
-            onClick={() => { logout(); router.push('/'); }}
+            onClick={() => { void logout(); router.push('/'); }}
             className="btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold cursor-pointer"
             style={{ border: '1px solid var(--border-subtle)' }}
           >
@@ -109,21 +144,36 @@ export default function AdminShell({ active, children }: AdminShellProps) {
       </aside>
 
       {/* Content */}
-      <main className="flex-1 min-w-0 overflow-y-auto p-5 md:p-8">
-        {allowed ? children : (
-          <div className="card-surface max-w-md mx-auto mt-16 p-8 text-center space-y-3" role="alert">
-            <ShieldCheck size={22} strokeWidth={2} className="mx-auto" style={{ color: 'var(--accent)' }} />
-            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Bạn không có quyền truy cập trang này</p>
-            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Vai trò hiện tại của bạn là {role ? ROLE_LABEL[role] : '—'}. Liên hệ quản trị viên nếu cần thêm quyền.
-            </p>
-            {allowedNav[0] && (
-              <Link href={allowedNav[0].href} className="btn-primary inline-block px-5 py-2 text-xs font-semibold">
-                Về {allowedNav[0].label}
-              </Link>
-            )}
-          </div>
-        )}
+      <main className="flex-1 min-w-0">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
+          {allowed ? (
+            <>
+              <div className="mb-7 flex items-start justify-between gap-4 flex-wrap">
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-bold tracking-tight font-display" style={{ color: 'var(--text-primary)' }}>{title}</h1>
+                  {description && (
+                    <p className="text-sm mt-1.5 max-w-2xl leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{description}</p>
+                  )}
+                </div>
+                {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+              </div>
+              {children}
+            </>
+          ) : (
+            <div className="card-surface max-w-md mx-auto mt-12 p-8 text-center space-y-3" role="alert">
+              <ShieldCheck size={22} strokeWidth={2} className="mx-auto" style={{ color: 'var(--accent)' }} />
+              <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Bạn không có quyền truy cập trang này</p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                Vai trò hiện tại của bạn là {role ? ROLE_LABEL[role] : '—'}. Liên hệ quản trị viên nếu cần thêm quyền.
+              </p>
+              {allowedNav[0] && (
+                <Link href={allowedNav[0].href} className="btn-primary inline-block px-5 py-2 text-xs font-semibold">
+                  Về {allowedNav[0].label}
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

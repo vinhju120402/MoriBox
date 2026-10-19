@@ -31,7 +31,7 @@ export const ROLE_DESCRIPTION: Record<Role, string> = {
   customer: 'Mua hàng, xem đơn của chính mình.',
   admin: 'Toàn quyền: kho, doanh thu, người dùng và phân quyền.',
   warehouse: 'Thêm, sửa, xóa sản phẩm và cập nhật tồn kho.',
-  accountant: 'Chỉ xem doanh thu và đơn hàng (không sửa được gì).',
+  accountant: 'Xem doanh thu, đơn hàng và xác nhận đã nhận tiền (không sửa được sản phẩm).',
 };
 
 export function isRole(value: unknown): value is Role {

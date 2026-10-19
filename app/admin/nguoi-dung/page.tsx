@@ -35,16 +35,10 @@ export default function AdminUsersPage() {
   const totalSpentAll = rows.reduce((acc, r) => acc + r.totalSpent, 0);
 
   return (
-    <AdminShell active="nguoi-dung">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold tracking-tight font-display" style={{ color: 'var(--text-primary)' }}>
-          Người dùng
-        </h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
-          Danh sách tài khoản đã đăng ký trên MoriBox, kèm lịch sử mua hàng thực tế.
-        </p>
-      </div>
-
+    <AdminShell active="nguoi-dung"
+      title="Người dùng"
+      description="Danh sách tài khoản đã đăng ký trên MoriBox, kèm lịch sử mua hàng thực tế."
+    >
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <AdminStat label="Tổng người dùng" value={String(totalUsers)} icon={<Users size={18} strokeWidth={2} />} />
         <AdminStat label="Khách đã từng mua hàng" value={String(activeBuyers)} icon={<UserCheck size={18} strokeWidth={2} />} />
@@ -57,7 +51,7 @@ export default function AdminUsersPage() {
       )}
 
       <div className="card-surface overflow-x-auto">
-        <table className="w-full text-xs">
+        <table className="admin-table w-full text-xs">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
               {['Tên', 'Email', 'Vai trò', 'Ngày tham gia', 'Số đơn hàng', 'Tổng chi tiêu', 'Quyền'].map(h => (

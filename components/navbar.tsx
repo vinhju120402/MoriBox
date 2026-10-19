@@ -3,10 +3,13 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ShoppingCart, Boxes, Menu, X, User, LogOut, Zap, ShieldCheck, Sparkles, Settings } from 'lucide-react';
+import { ShoppingCart, Boxes, Menu, X, User, LogOut, Zap, Settings, Package } from 'lucide-react';
 import { CategoryLink } from '../app/data/products';
 import { useProductCatalog } from '../hooks/use-product-catalog';
 import { useLanguage } from '../hooks/use-language';
+import { useAuth } from '../hooks/use-auth';
+import { ADMIN_NAV_ITEMS } from '../lib/admin-nav';
+import { can } from '../lib/permissions';
 
 interface NavbarProps {
   cartCount: number;
@@ -17,8 +20,6 @@ interface NavbarProps {
   isStaff?: boolean;
   userName?: string;
   onLogout?: () => void;
-  /** Only the homepage passes this — replays the welcome walkthrough. */
-  onShowIntro?: () => void;
 }
 
 export default function Navbar({
@@ -29,12 +30,12 @@ export default function Navbar({
   isStaff = false,
   userName,
   onLogout,
-  onShowIntro,
 }: NavbarProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const pathname = usePathname();
   const { products } = useProductCatalog();
   const { t } = useLanguage();
+  const { role } = useAuth();
 
   const flashSaleCount = products.filter(p => p.salePrice != null).length;
   const newArrivalsCount = products.filter(p => p.isNew).length;
@@ -83,14 +84,18 @@ export default function Navbar({
           </span>
         </Link>
 
-        <button
-          onClick={onCartClick}
-          aria-label={t('nav.cart')}
-          className="nav-pill relative p-2 cursor-pointer"
-        >
-          <ShoppingCart size={17} strokeWidth={2} />
-          {cartBadge}
-        </button>
+        {isStaff ? (
+          <span className="w-9" aria-hidden="true" />
+        ) : (
+          <button
+            onClick={onCartClick}
+            aria-label={t('nav.cart')}
+            className="nav-pill relative p-2 cursor-pointer"
+          >
+            <ShoppingCart size={17} strokeWidth={2} />
+            {cartBadge}
+          </button>
+        )}
       </header>
 
       {/* Mobile backdrop */}
@@ -138,8 +143,32 @@ export default function Navbar({
           </button>
         </div>
 
-        {/* Grade list — always visible, no expand/collapse */}
+        {/* Shoppers see the category list; staff see their back-office menu instead. */}
         <nav className="flex-1 overflow-y-auto px-5 py-5 space-y-1.5">
+          {isStaff ? (
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-wide px-1 mb-2" style={{ color: 'var(--text-muted)' }}>
+                {t('nav.adminMenu')}
+              </p>
+              {ADMIN_NAV_ITEMS.filter(item => can(role, item.permission)).map(item => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.key}
+                    href={item.href}
+                    onClick={closeMobile}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`filter-pill w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold cursor-pointer${isActive ? ' active' : ''}`}
+                  >
+                    <Icon size={15} strokeWidth={2} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </>
+          ) : (
+          <>
           <p className="text-[11px] font-semibold uppercase tracking-wide px-1 mb-2" style={{ color: 'var(--text-muted)' }}>
             {t('nav.categories')}
           </p>
@@ -192,6 +221,8 @@ export default function Navbar({
               </Link>
             );
           })}
+          </>
+          )}
         </nav>
 
         {/* Account + Cart */}
@@ -215,16 +246,6 @@ export default function Navbar({
                   <LogOut size={14} strokeWidth={2} />
                 </button>
               </div>
-              {isStaff && (
-                <Link
-                  href="/admin"
-                  className="btn-ghost w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold cursor-pointer"
-                  style={{ border: '1px solid var(--border-subtle)' }}
-                >
-                  <ShieldCheck size={15} strokeWidth={2} />
-                  <span>{t('nav.admin')}</span>
-                </Link>
-              )}
             </>
           ) : (
             <Link
@@ -236,16 +257,29 @@ export default function Navbar({
               <span>{t('nav.login')}</span>
             </Link>
           )}
-          <button
-            id="navbar-cart-btn"
-            onClick={onCartClick}
-            aria-label={t('nav.cart')}
-            className="btn-outline relative w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold cursor-pointer"
-          >
-            <ShoppingCart size={15} strokeWidth={2} />
-            <span>{t('nav.cart')}</span>
-            {cartBadge}
-          </button>
+          {!isStaff && (
+            <button
+              id="navbar-cart-btn"
+              onClick={onCartClick}
+              aria-label={t('nav.cart')}
+              className="btn-outline relative w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold cursor-pointer"
+            >
+              <ShoppingCart size={15} strokeWidth={2} />
+              <span>{t('nav.cart')}</span>
+              {cartBadge}
+            </button>
+          )}
+          {isLoggedIn && !isStaff && (
+            <Link
+              href="/don-hang"
+              onClick={closeMobile}
+              className="btn-ghost w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold cursor-pointer"
+              style={{ border: '1px solid var(--border-subtle)' }}
+            >
+              <Package size={15} strokeWidth={2} />
+              <span>{t('nav.orders')}</span>
+            </Link>
+          )}
           <Link
             href="/cai-dat"
             onClick={closeMobile}
@@ -255,16 +289,6 @@ export default function Navbar({
             <Settings size={15} strokeWidth={2} />
             <span>{t('nav.settings')}</span>
           </Link>
-          {onShowIntro && (
-            <button
-              onClick={() => { onShowIntro(); closeMobile(); }}
-              className="btn-ghost w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold cursor-pointer"
-              style={{ border: '1px solid var(--border-subtle)' }}
-            >
-              <Sparkles size={15} strokeWidth={2} />
-              <span>{t('nav.intro')}</span>
-            </button>
-          )}
         </div>
       </aside>
     </>

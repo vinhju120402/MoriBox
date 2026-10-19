@@ -9,6 +9,7 @@ create table if not exists public.profiles (
   id          uuid primary key references auth.users (id) on delete cascade,
   name        text not null default '',
   email       text not null default '',
+  phone       text not null default '',
   role        text not null default 'customer'
               check (role in ('customer','admin','warehouse','accountant')),
   created_at  timestamptz not null default now()
@@ -44,6 +45,8 @@ begin
 end;
 $$;
 
+alter table public.profiles add column if not exists phone text not null default '';
+
 -- Migration for databases created before roles existed: is_admin -> role.
 alter table public.profiles add column if not exists role text not null default 'customer'
   check (role in ('customer','admin','warehouse','accountant'));
@@ -69,8 +72,15 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, name, email)
-  values (new.id, coalesce(new.raw_user_meta_data ->> 'name', ''), coalesce(new.email, ''));
+  -- Name comes from the email sign-up form; phone sign-ins have none
+  -- (the app falls back to a generic label).
+  insert into public.profiles (id, name, email, phone)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data ->> 'name', ''),
+    coalesce(new.email, ''),
+    coalesce(new.phone, '')
+  );
   perform public.apply_admin_allowlist(new.id, new.email, new.email_confirmed_at);
   return new;
 end;
@@ -221,6 +231,16 @@ create table if not exists public.order_items (
   quantity    integer not null check (quantity > 0)
 );
 
+-- Payment tracking. cod/bank_transfer are live; the others are reserved for
+-- gateways (MoMo, ZaloPay, VNPay, card) that are not connected yet.
+alter table public.orders add column if not exists payment_method text not null default 'cod'
+  check (payment_method in ('cod','bank_transfer','momo','zalopay','vnpay','card'));
+alter table public.orders add column if not exists payment_status text not null default 'unpaid'
+  check (payment_status in ('unpaid','paid','refunded'));
+alter table public.orders add column if not exists paid_at timestamptz;
+-- Set when a customer asks to cancel an order they already paid for.
+alter table public.orders add column if not exists cancel_requested_at timestamptz;
+
 create index if not exists orders_user_idx on public.orders (user_id, created_at desc);
 create index if not exists order_items_order_idx on public.order_items (order_id);
 
@@ -249,7 +269,10 @@ create policy "order_items: read own or admin" on public.order_items
 -- p_shipping: { "name": "...", "phone": "...", "address": "...", "sector": "..." }
 -- Prices are read from the products table here — never trusted from the client.
 -- Stock is locked, checked and decremented in the same transaction.
-create or replace function public.place_order(p_items jsonb, p_shipping jsonb)
+-- Signature changed (added p_payment_method), so drop the old overload first.
+drop function if exists public.place_order(jsonb, jsonb);
+
+create or replace function public.place_order(p_items jsonb, p_shipping jsonb, p_payment_method text default 'cod')
 returns table (order_id uuid, order_code text, total integer)
 language plpgsql
 security definer
@@ -279,15 +302,20 @@ begin
     raise exception 'missing_shipping_info';
   end if;
 
+  -- Only methods that work without a gateway can be chosen for now.
+  if p_payment_method not in ('cod', 'bank_transfer') then
+    raise exception 'invalid_payment_method';
+  end if;
+
   select email into v_email from public.profiles where id = v_uid;
   v_code := 'MS-' || lpad((floor(random() * 900000) + 100000)::int::text, 6, '0');
 
   insert into public.orders
-    (id, code, user_id, customer_name, customer_email, phone, address, sector, subtotal, shipping_fee, total)
+    (id, code, user_id, customer_name, customer_email, phone, address, sector, subtotal, shipping_fee, total, payment_method)
   values
     (v_order_id, v_code, v_uid, trim(p_shipping ->> 'name'), coalesce(v_email, ''),
      trim(p_shipping ->> 'phone'), trim(p_shipping ->> 'address'),
-     coalesce(p_shipping ->> 'sector', ''), 0, v_shipping, 0);
+     coalesce(p_shipping ->> 'sector', ''), 0, v_shipping, 0, p_payment_method);
 
   for v_item in select * from jsonb_array_elements(p_items) loop
     v_qty := (v_item ->> 'quantity')::int;
@@ -317,8 +345,8 @@ begin
 end;
 $$;
 
-revoke all on function public.place_order(jsonb, jsonb) from public, anon;
-grant execute on function public.place_order(jsonb, jsonb) to authenticated;
+revoke all on function public.place_order(jsonb, jsonb, text) from public, anon;
+grant execute on function public.place_order(jsonb, jsonb, text) to authenticated;
 
 -- ───────────────────────── Making yourself admin ─────────────────────────
 -- After you have registered an account in the app, run this ONCE in the SQL
@@ -376,6 +404,99 @@ $$;
 
 revoke all on function public.set_user_role(uuid, text) from public, anon;
 grant execute on function public.set_user_role(uuid, text) to authenticated;
+
+-- ───────────────────────── Confirming payment ─────────────────────────
+-- Admin and accountant mark an order paid (COD: after delivery; bank transfer:
+-- once the money has arrived) or refunded. Done through this function so the
+-- accountant can confirm payments without being able to edit anything else.
+create or replace function public.set_order_payment(p_order_id uuid, p_status text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.has_role(array['admin','accountant']) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  if p_status not in ('unpaid','paid','refunded') then
+    raise exception 'invalid_status';
+  end if;
+  if p_status = 'paid' and exists (select 1 from public.orders where id = p_order_id and status = 'cancelled') then
+    raise exception 'order_cancelled';
+  end if;
+  update public.orders
+     set payment_status = p_status,
+         paid_at = case when p_status = 'paid' then now() else null end
+   where id = p_order_id;
+end;
+$$;
+
+revoke all on function public.set_order_payment(uuid, text) from public, anon;
+grant execute on function public.set_order_payment(uuid, text) to authenticated;
+
+-- ───────────────────────── Cancelling an order ─────────────────────────
+-- Returns 'cancelled' or 'requested'.
+--   Customer, order still unpaid  -> cancelled at once, stock goes back.
+--   Customer, order already paid  -> only records a cancel request; staff
+--                                    cancel it and refund the money by hand.
+--   Admin / accountant            -> cancel any order that has not shipped.
+-- Refunds are NOT automatic (no payment gateway): after cancelling a paid order,
+-- staff transfer the money back and mark it with set_order_payment(..., 'refunded').
+create or replace function public.cancel_order(p_order_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order  public.orders%rowtype;
+  v_staff  boolean := public.has_role(array['admin','accountant']);
+  v_item   record;
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+
+  select * into v_order from public.orders where id = p_order_id for update;
+  if not found then
+    raise exception 'order_not_found';
+  end if;
+  if not v_staff and v_order.user_id is distinct from auth.uid() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+
+  if v_order.status = 'cancelled' then
+    return 'cancelled';
+  end if;
+  if v_order.status in ('shipping', 'delivered') then
+    raise exception 'cannot_cancel_after_shipping';
+  end if;
+  if not v_staff and v_order.status <> 'pending' then
+    raise exception 'cannot_cancel_confirmed';
+  end if;
+
+  if not v_staff and v_order.payment_status = 'paid' then
+    update public.orders
+       set cancel_requested_at = coalesce(cancel_requested_at, now())
+     where id = p_order_id;
+    return 'requested';
+  end if;
+
+  for v_item in
+    select product_id, quantity from public.order_items
+     where order_id = p_order_id and product_id is not null
+  loop
+    update public.products set stock = stock + v_item.quantity where id = v_item.product_id;
+  end loop;
+
+  update public.orders set status = 'cancelled' where id = p_order_id;
+  return 'cancelled';
+end;
+$$;
+
+revoke all on function public.cancel_order(uuid) from public, anon;
+grant execute on function public.cancel_order(uuid) to authenticated;
 
 -- ───────────────────────── Allowlist: how to use ─────────────────────────
 -- 1) Add staff emails (lowercase) with a role - run separately, e.g.:

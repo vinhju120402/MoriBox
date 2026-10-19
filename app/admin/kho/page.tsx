@@ -56,27 +56,22 @@ export default function AdminInventoryPage() {
   };
 
   return (
-    <AdminShell active="kho">
-      {error && (
-        <p role="alert" className="mb-4 p-3 rounded-xl text-xs font-medium" style={{ background: 'var(--accent-dim)', color: 'var(--danger)' }}>{error}</p>
-      )}
-      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight font-display" style={{ color: 'var(--text-primary)' }}>
-            Kho hàng
-          </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
-            Thêm, sửa, xóa sản phẩm và theo dõi tồn kho theo từng SKU.
-          </p>
-        </div>
+    <AdminShell
+      active="kho"
+      title="Kho hàng"
+      description="Thêm, sửa, xóa sản phẩm và theo dõi tồn kho theo từng SKU."
+      actions={
         <button
           onClick={() => setModalProduct(null)}
           className="btn-primary px-4 py-2.5 text-sm font-semibold cursor-pointer flex items-center gap-2"
         >
           <Plus size={15} strokeWidth={2} /> Thêm sản phẩm
         </button>
-      </div>
-
+      }
+    >
+      {error && (
+        <p role="alert" className="mb-4 p-3 rounded-xl text-xs font-medium" style={{ background: 'var(--accent-dim)', color: 'var(--danger)' }}>{error}</p>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <AdminStat label="Tổng số SKU" value={String(totalSku)} icon={<Boxes size={18} strokeWidth={2} />} />
         <AdminStat label="Tổng số lượng tồn" value={totalUnits.toLocaleString('vi-VN')} icon={<PackageCheck size={18} strokeWidth={2} />} />
@@ -98,7 +93,7 @@ export default function AdminInventoryPage() {
       </div>
 
       <div className="card-surface overflow-x-auto">
-        <table className="w-full text-xs">
+        <table className="admin-table w-full text-xs">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
               {['Sản phẩm', 'Grade', 'Giá bán', 'Tồn kho', 'Trạng thái', ''].map(h => (

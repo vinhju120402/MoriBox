@@ -990,3 +990,31 @@ html.theme-fade * {
 :root[data-motion='reduce'] .banner-hud::after {
   animation: none;
 }
+
+
+/* ── Admin data tables ──────────────────────────────── */
+.admin-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.admin-table th {
+  background: var(--bg-base);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.admin-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.admin-table tbody tr:hover {
+  background: var(--accent-dim);
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: none;
+}

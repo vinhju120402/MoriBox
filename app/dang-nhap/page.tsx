@@ -163,9 +163,14 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-xs font-semibold mb-1.5 text-white">
-                  Mật khẩu
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="password" className="block text-xs font-semibold text-white">
+                    Mật khẩu
+                  </label>
+                  <Link href="/quen-mat-khau" className="text-[11px] font-semibold" style={{ color: '#fdba74' }}>
+                    Quên mật khẩu?
+                  </Link>
+                </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none" style={{ color: 'rgba(255,255,255,0.5)' }}>
                     <Lock size={14} strokeWidth={2} />
