@@ -119,6 +119,7 @@ export function useOrders() {
   const userId = user?.id;
   const [orders, setOrders] = useState<Order[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
@@ -134,8 +135,9 @@ export function useOrders() {
       .from('orders')
       .select(ORDER_SELECT)
       .order('created_at', { ascending: false })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (cancelled) return;
+        setLoadError(!!error);
         if (data) setOrders((data as unknown as OrderRow[]).map(fromRow));
         setHasLoaded(true);
       });
@@ -168,7 +170,7 @@ export function useOrders() {
     return { ok: true };
   };
 
-  return { orders: userId ? orders : [], hasLoaded, setPaymentStatus, cancel, setStatus, reload };
+  return { orders: userId ? orders : [], hasLoaded, loadError, setPaymentStatus, cancel, setStatus, reload };
 }
 
 export interface ShippingInfo {

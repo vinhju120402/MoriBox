@@ -69,7 +69,7 @@ export default function MyOrdersPage() {
     cartItems, isCartOpen, setIsCartOpen, handleUpdateQuantity, handleRemoveItem, handleClearCart,
     isLoggedIn, isStaff, hasLoaded, user, logout,
   } = useGatedCart();
-  const { orders, cancel } = useOrders();
+  const { orders, cancel, loadError } = useOrders();
   const { settings } = useShopSettings();
   const bankReady = isBankConfigured(settings);
   const [openQr, setOpenQr] = useState<string | null>(null);
@@ -159,6 +159,12 @@ export default function MyOrdersPage() {
             })}
           </div>
 
+          {loadError && (
+            <p role="alert" className="mt-4 p-3 rounded-xl text-xs font-medium" style={{ background: 'var(--accent-dim)', color: 'var(--danger)' }}>
+              Không tải được danh sách đơn hàng. Hãy tải lại trang; nếu vẫn lỗi, đăng xuất rồi đăng nhập lại.
+            </p>
+          )}
+
           <div role="tabpanel" className="mt-4 space-y-4">
             {hasLoaded && isLoggedIn && mine.length > 0 && visible.length === 0 && (
               <div className="card-surface text-center py-14 px-4">
@@ -171,6 +177,10 @@ export default function MyOrdersPage() {
               <div className="card-surface text-center py-16 px-4">
                 <PackageOpen size={28} strokeWidth={1.8} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
                 <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Bạn chưa có đơn hàng nào</p>
+                <p className="text-xs mt-2 max-w-sm mx-auto leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  Đang đăng nhập bằng <strong style={{ color: 'var(--text-primary)' }}>{user?.email}</strong>. Đơn đặt bằng tài khoản khác sẽ không hiện ở đây
+                  {isStaff ? '. Tài khoản nhân viên chỉ thấy đơn do chính mình đặt; xem mọi đơn ở Quản trị → Đơn hàng' : ''}.
+                </p>
                 <Link href="/" className="btn-primary inline-block mt-4 px-5 py-2.5 text-xs font-semibold">Mua sắm ngay</Link>
               </div>
             )}
