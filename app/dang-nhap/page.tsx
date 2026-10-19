@@ -24,14 +24,22 @@ export default function LoginPage() {
     setRedirectTo(params.get('redirect') || '/');
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const ok = login(email);
-    if (ok) {
+    setSubmitting(true);
+    const err = await login(email, password);
+    setSubmitting(false);
+    if (!err) {
       router.push(redirectTo);
+    } else if (err === 'email_not_confirmed') {
+      setError('Email chưa được xác nhận. Vui lòng kiểm tra hộp thư của bạn.');
+    } else if (err === 'invalid_credentials') {
+      setError('Email hoặc mật khẩu không đúng.');
     } else {
-      setError('Chưa có tài khoản với email này. Vui lòng đăng ký trước.');
+      setError('Không thể đăng nhập lúc này. Vui lòng thử lại.');
     }
   };
 
@@ -177,9 +185,10 @@ export default function LoginPage() {
 
               <button
                 type="submit"
+                disabled={submitting}
                 className="btn-primary w-full py-2.5 text-sm font-semibold cursor-pointer"
               >
-                Đăng nhập
+                {submitting ? 'Đang xử lý…' : 'Đăng nhập'}
               </button>
             </form>
 

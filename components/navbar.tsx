@@ -13,7 +13,8 @@ interface NavbarProps {
   onCartClick: () => void;
   gradeCategories: CategoryLink[];
   isLoggedIn?: boolean;
-  isAdmin?: boolean;
+  /** Any back-office role (admin, warehouse, accountant) — shows the admin-panel link. */
+  isStaff?: boolean;
   userName?: string;
   onLogout?: () => void;
   /** Only the homepage passes this — replays the welcome walkthrough. */
@@ -25,7 +26,7 @@ export default function Navbar({
   onCartClick,
   gradeCategories,
   isLoggedIn = false,
-  isAdmin = false,
+  isStaff = false,
   userName,
   onLogout,
   onShowIntro,
@@ -214,7 +215,7 @@ export default function Navbar({
                   <LogOut size={14} strokeWidth={2} />
                 </button>
               </div>
-              {isAdmin && (
+              {isStaff && (
                 <Link
                   href="/admin"
                   className="btn-ghost w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold cursor-pointer"

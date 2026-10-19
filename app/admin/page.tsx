@@ -5,18 +5,22 @@ import { Wallet, ReceiptText, Users, AlertTriangle, Boxes, LineChart, ArrowRight
 import AdminShell from '../../components/admin-shell';
 import AdminStat from '../../components/admin-stat';
 import { useOrders } from '../../hooks/use-orders';
-import { getRegisteredUsers } from '../../hooks/use-auth';
+import { useAllProfiles, useAuth } from '../../hooks/use-auth';
+import { can } from '../../lib/permissions';
 import { useProductCatalog } from '../../hooks/use-product-catalog';
 
 export default function AdminDashboardPage() {
+  const { role } = useAuth();
   const { orders } = useOrders();
   const { products } = useProductCatalog();
+  const showRevenue = can(role, 'revenue');
+  const showUsers = can(role, 'users');
 
   const totalRevenue = orders.reduce((acc, o) => acc + o.total, 0);
   const totalOrders = orders.length;
   const lowStockProducts = products.filter(p => p.stock > 0 && p.stock <= 5);
   const outOfStockProducts = products.filter(p => p.stock === 0);
-  const totalUsers = getRegisteredUsers().length;
+  const totalUsers = useAllProfiles().users.length;
 
   const recentOrders = [...orders].reverse().slice(0, 5);
 
@@ -33,9 +37,9 @@ export default function AdminDashboardPage() {
 
       {/* Stat tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <AdminStat label="Tổng doanh thu" value={`${totalRevenue.toLocaleString('vi-VN')}đ`} icon={<Wallet size={18} strokeWidth={2} />} />
-        <AdminStat label="Tổng đơn hàng" value={String(totalOrders)} icon={<ReceiptText size={18} strokeWidth={2} />} />
-        <AdminStat label="Người dùng đã đăng ký" value={String(totalUsers)} icon={<Users size={18} strokeWidth={2} />} />
+        {showRevenue && <AdminStat label="Tổng doanh thu" value={`${totalRevenue.toLocaleString('vi-VN')}đ`} icon={<Wallet size={18} strokeWidth={2} />} />}
+        {showRevenue && <AdminStat label="Tổng đơn hàng" value={String(totalOrders)} icon={<ReceiptText size={18} strokeWidth={2} />} />}
+        {showUsers && <AdminStat label="Người dùng đã đăng ký" value={String(totalUsers)} icon={<Users size={18} strokeWidth={2} />} />}
         <AdminStat
           label="Sản phẩm sắp/hết hàng"
           value={String(lowStockProducts.length + outOfStockProducts.length)}
@@ -47,10 +51,10 @@ export default function AdminDashboardPage() {
       {/* Quick links */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         {[
-          { href: '/admin/kho', label: 'Quản lý kho hàng', desc: 'Xem & cập nhật tồn kho theo từng sản phẩm.', icon: Boxes },
-          { href: '/admin/nguoi-dung', label: 'Quản lý người dùng', desc: 'Danh sách tài khoản, vai trò và lịch sử mua hàng.', icon: Users },
-          { href: '/admin/doanh-thu', label: 'Báo cáo doanh thu', desc: 'Biểu đồ doanh thu và danh sách đơn hàng.', icon: LineChart },
-        ].map((card) => {
+          { href: '/admin/kho', label: 'Quản lý kho hàng', desc: 'Xem & cập nhật tồn kho theo từng sản phẩm.', icon: Boxes, show: can(role, 'inventory') },
+          { href: '/admin/nguoi-dung', label: 'Quản lý người dùng', desc: 'Danh sách tài khoản, vai trò và phân quyền.', icon: Users, show: showUsers },
+          { href: '/admin/doanh-thu', label: 'Báo cáo doanh thu', desc: 'Biểu đồ doanh thu và danh sách đơn hàng.', icon: LineChart, show: showRevenue },
+        ].filter(card => card.show).map((card) => {
           const Icon = card.icon;
           return (
             <Link key={card.href} href={card.href} className="card-surface is-interactive p-5 flex flex-col cursor-pointer">
@@ -70,8 +74,8 @@ export default function AdminDashboardPage() {
         })}
       </div>
 
-      {/* Recent orders */}
-      <div className="card-surface p-5">
+      {/* Recent orders (revenue permission only) */}
+      {showRevenue && <div className="card-surface p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Đơn hàng gần đây</h3>
           <Link href="/admin/doanh-thu" className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>
@@ -111,7 +115,7 @@ export default function AdminDashboardPage() {
             </table>
           </div>
         )}
-      </div>
+      </div>}
     </AdminShell>
   );
 }

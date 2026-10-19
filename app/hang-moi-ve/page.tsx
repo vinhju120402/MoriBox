@@ -25,7 +25,7 @@ export default function NewArrivalsPage() {
     handleClearCart,
     toggleLike,
     isLoggedIn,
-    isAdmin,
+    isStaff,
     user,
     logout,
   } = useGatedCart();
@@ -51,7 +51,7 @@ export default function NewArrivalsPage() {
         onCartClick={() => setIsCartOpen(true)}
         gradeCategories={GRADE_CATEGORIES}
         isLoggedIn={isLoggedIn}
-        isAdmin={isAdmin}
+        isStaff={isStaff}
         userName={user?.name}
         onLogout={logout}
       />
@@ -136,7 +136,6 @@ export default function NewArrivalsPage() {
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
           onClearCart={handleClearCart}
-          customerEmail={user?.email}
         />
 
         <SiteFooter />

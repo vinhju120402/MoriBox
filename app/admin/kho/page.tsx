@@ -5,7 +5,7 @@ import { Boxes, PackageCheck, PackageX, TriangleAlert, Check, Plus, Pencil, Tras
 import AdminShell from '../../../components/admin-shell';
 import AdminStat from '../../../components/admin-stat';
 import AdminProductModal from '../../../components/admin-product-modal';
-import { useProductCatalog } from '../../../hooks/use-product-catalog';
+import { useProductCatalog, CatalogResult } from '../../../hooks/use-product-catalog';
 import { Product, GradeCode } from '../../data/products';
 
 const GRADE_FILTERS: (GradeCode | 'ALL')[] = ['ALL', 'PG', 'MG', 'RG', 'HG', 'EG', 'SD', 'ACC'];
@@ -22,6 +22,9 @@ export default function AdminInventoryPage() {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [savedId, setSavedId] = useState<string | null>(null);
   const [modalProduct, setModalProduct] = useState<Product | null | undefined>(undefined);
+  const [error, setError] = useState('');
+
+  const report = (r: CatalogResult) => setError(r.ok ? '' : `Không lưu được: ${r.error}`);
 
   const rows = products.filter(p => gradeFilter === 'ALL' || p.grade === gradeFilter);
 
@@ -30,34 +33,33 @@ export default function AdminInventoryPage() {
   const lowStockCount = products.filter(p => p.stock > 0 && p.stock <= 5).length;
   const outOfStockCount = products.filter(p => p.stock === 0).length;
 
-  const handleSaveStock = (productId: string) => {
+  const handleSaveStock = async (productId: string) => {
     const raw = draft[productId];
     if (raw === undefined) return;
     const parsed = Number(raw);
     if (Number.isNaN(parsed)) return;
-    updateProduct(productId, { stock: Math.max(0, Math.floor(parsed)) });
+    report(await updateProduct(productId, { stock: Math.max(0, Math.floor(parsed)) }));
     setDraft(prev => { const next = { ...prev }; delete next[productId]; return next; });
     setSavedId(productId);
     setTimeout(() => setSavedId(id => (id === productId ? null : id)), 1200);
   };
 
-  const handleDelete = (product: Product) => {
+  const handleDelete = async (product: Product) => {
     if (window.confirm(`Xóa sản phẩm "${product.name}"? Hành động này không thể hoàn tác.`)) {
-      deleteProduct(product.id);
+      report(await deleteProduct(product.id));
     }
   };
 
-  const handleModalSave = (product: Product) => {
-    if (modalProduct) {
-      updateProduct(product.id, product);
-    } else {
-      addProduct(product);
-    }
+  const handleModalSave = async (product: Product) => {
+    report(await (modalProduct ? updateProduct(product.id, product) : addProduct(product)));
     setModalProduct(undefined);
   };
 
   return (
     <AdminShell active="kho">
+      {error && (
+        <p role="alert" className="mb-4 p-3 rounded-xl text-xs font-medium" style={{ background: 'var(--accent-dim)', color: 'var(--danger)' }}>{error}</p>
+      )}
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold tracking-tight font-display" style={{ color: 'var(--text-primary)' }}>

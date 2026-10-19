@@ -1,109 +1,129 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { PRODUCTS, Product } from '../app/data/products';
+import { useCallback, useSyncExternalStore } from 'react';
+import { PRODUCTS, Product, GradeCode } from '../app/data/products';
+import { getSupabase } from '../lib/supabase';
 
-const CUSTOM_KEY = 'moribox_custom_products';
-const EDITS_KEY = 'moribox_product_edits';
-const DELETED_KEY = 'moribox_deleted_product_ids';
-// Same-tab sync event, mirroring the pattern in use-stock-overrides — so the
-// admin Kho page and every storefront page reading the catalog stay in sync
-// the moment a product is added, edited, or deleted.
-const CATALOG_EVENT = 'moribox-catalog-updated';
+interface ProductRow {
+  id: string;
+  name: string;
+  grade: GradeCode;
+  scale: string;
+  series: string;
+  price: number;
+  sale_price: number | null;
+  image: string;
+  images: string[];
+  stock: number;
+  is_new: boolean;
+  is_best_seller: boolean;
+  specs: Product['specs'];
+  description: string;
+}
 
-function readCustom(): Product[] {
-  try {
-    const raw = localStorage.getItem(CUSTOM_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
+const fromRow = (r: ProductRow): Product => ({
+  id: r.id,
+  name: r.name,
+  grade: r.grade,
+  scale: r.scale,
+  series: r.series,
+  price: r.price,
+  salePrice: r.sale_price ?? undefined,
+  image: r.image,
+  images: r.images?.length ? r.images : undefined,
+  stock: r.stock,
+  isNew: r.is_new,
+  isBestSeller: r.is_best_seller,
+  specs: r.specs,
+  description: r.description,
+});
+
+const toRow = (p: Partial<Product>): Partial<ProductRow> => {
+  const row: Partial<ProductRow> = {};
+  if (p.id !== undefined) row.id = p.id;
+  if (p.name !== undefined) row.name = p.name;
+  if (p.grade !== undefined) row.grade = p.grade;
+  if (p.scale !== undefined) row.scale = p.scale;
+  if (p.series !== undefined) row.series = p.series;
+  if (p.price !== undefined) row.price = p.price;
+  if ('salePrice' in p) row.sale_price = p.salePrice ?? null;
+  if (p.image !== undefined) row.image = p.image;
+  if (p.images !== undefined) row.images = p.images;
+  if (p.stock !== undefined) row.stock = p.stock;
+  if (p.isNew !== undefined) row.is_new = p.isNew;
+  if (p.isBestSeller !== undefined) row.is_best_seller = p.isBestSeller;
+  if (p.specs !== undefined) row.specs = p.specs;
+  if (p.description !== undefined) row.description = p.description;
+  return row;
+};
+
+// ── Shared catalog store (Supabase `products` table) ─────────────────
+// Until the first fetch resolves, `products` is the static seed list so the
+// storefront never flashes empty; `hasLoaded` flips once the DB answered.
+interface CatalogState {
+  products: Product[];
+  hasLoaded: boolean;
+}
+
+const SERVER_STATE: CatalogState = { products: PRODUCTS, hasLoaded: false };
+let state: CatalogState = SERVER_STATE;
+let started = false;
+const listeners = new Set<() => void>();
+
+function setState(next: CatalogState) {
+  state = next;
+  listeners.forEach(l => l());
+}
+
+// Re-reads the catalog from the database (e.g. after checkout changed stock).
+export async function refreshCatalog() {
+  const { data, error } = await getSupabase().from('products').select('*').order('created_at', { ascending: true });
+  if (error) {
+    console.error('Failed to load products', error.message);
+    // Keep whatever we already show (seed list on first load).
+    setState({ ...state, hasLoaded: true });
+    return;
   }
+  setState({ products: (data as ProductRow[]).map(fromRow), hasLoaded: true });
 }
 
-function readEdits(): Record<string, Partial<Product>> {
-  try {
-    const raw = localStorage.getItem(EDITS_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
+function subscribe(cb: () => void) {
+  if (!started && typeof window !== 'undefined') {
+    started = true;
+    void refreshCatalog();
   }
+  listeners.add(cb);
+  return () => { listeners.delete(cb); };
 }
 
-function readDeleted(): string[] {
-  try {
-    const raw = localStorage.getItem(DELETED_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
+const getSnapshot = () => state;
+const getServerSnapshot = () => SERVER_STATE;
 
-// The seed PRODUCTS array plus everything an admin has added/edited/deleted
-// locally — this is the single source of truth every page should read from,
-// so admin changes on this browser show up consistently across the site.
-function buildCatalog(): Product[] {
-  const custom = readCustom();
-  const edits = readEdits();
-  const deleted = new Set(readDeleted());
-  return [...PRODUCTS, ...custom]
-    .filter(p => !deleted.has(p.id))
-    .map(p => (edits[p.id] ? { ...p, ...edits[p.id] } : p));
-}
+export type CatalogResult = { ok: true } | { ok: false; error: string };
 
 export function useProductCatalog() {
-  const [products, setProducts] = useState<Product[]>(PRODUCTS);
-  // Until this flips true, `products` is only the static seed list — pages
-  // looking up a single (possibly admin-added) product by id must wait for
-  // it before deciding the product doesn't exist, or a custom product 404s
-  // on first render before localStorage has been read.
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const { products, hasLoaded } = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setProducts(buildCatalog());
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHasLoaded(true);
-    const handleUpdate = () => setProducts(buildCatalog());
-    window.addEventListener(CATALOG_EVENT, handleUpdate);
-    return () => window.removeEventListener(CATALOG_EVENT, handleUpdate);
+  // Mutations require an admin session — RLS rejects anyone else server-side.
+  const addProduct = useCallback(async (product: Product): Promise<CatalogResult> => {
+    const { error } = await getSupabase().from('products').insert(toRow(product));
+    if (error) return { ok: false, error: error.message };
+    await refreshCatalog();
+    return { ok: true };
   }, []);
 
-  const notify = () => {
-    setProducts(buildCatalog());
-    window.dispatchEvent(new Event(CATALOG_EVENT));
-  };
-
-  const addProduct = useCallback((product: Product) => {
-    const custom = readCustom();
-    localStorage.setItem(CUSTOM_KEY, JSON.stringify([...custom, product]));
-    notify();
+  const updateProduct = useCallback(async (id: string, updates: Partial<Product>): Promise<CatalogResult> => {
+    const { error } = await getSupabase().from('products').update(toRow(updates)).eq('id', id);
+    if (error) return { ok: false, error: error.message };
+    await refreshCatalog();
+    return { ok: true };
   }, []);
 
-  const updateProduct = useCallback((id: string, updates: Partial<Product>) => {
-    const custom = readCustom();
-    const idx = custom.findIndex(p => p.id === id);
-    if (idx > -1) {
-      custom[idx] = { ...custom[idx], ...updates };
-      localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom));
-    } else {
-      const edits = readEdits();
-      edits[id] = { ...edits[id], ...updates };
-      localStorage.setItem(EDITS_KEY, JSON.stringify(edits));
-    }
-    notify();
-  }, []);
-
-  const deleteProduct = useCallback((id: string) => {
-    const custom = readCustom();
-    if (custom.some(p => p.id === id)) {
-      localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom.filter(p => p.id !== id)));
-    } else {
-      const deleted = readDeleted();
-      if (!deleted.includes(id)) {
-        localStorage.setItem(DELETED_KEY, JSON.stringify([...deleted, id]));
-      }
-    }
-    notify();
+  const deleteProduct = useCallback(async (id: string): Promise<CatalogResult> => {
+    const { error } = await getSupabase().from('products').delete().eq('id', id);
+    if (error) return { ok: false, error: error.message };
+    await refreshCatalog();
+    return { ok: true };
   }, []);
 
   return { products, hasLoaded, addProduct, updateProduct, deleteProduct };

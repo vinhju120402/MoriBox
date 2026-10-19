@@ -4,8 +4,7 @@ import React, { useState } from 'react';
 import { Product } from '@/app/data/products';
 import { X, Trash2, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, ShoppingBag } from 'lucide-react';
 import ProductImage from './product-image';
-import { useOrders } from '../hooks/use-orders';
-import { useProductCatalog } from '../hooks/use-product-catalog';
+import { placeOrder } from '../hooks/use-orders';
 
 export interface CartItem {
   product: Product;
@@ -19,8 +18,6 @@ interface CartDrawerProps {
   onUpdateQuantity: (index: number, quantity: number) => void;
   onRemoveItem: (index: number) => void;
   onClearCart: () => void;
-  /** Attributes the completed order to an account for the admin dashboard. */
-  customerEmail?: string;
 }
 
 /* ── Style helpers ─────────────────────────────────── */
@@ -33,12 +30,11 @@ export default function CartDrawer({
   onUpdateQuantity,
   onRemoveItem,
   onClearCart,
-  customerEmail,
 }: CartDrawerProps) {
-  const { addOrder } = useOrders();
-  const { updateProduct } = useProductCatalog();
   const [checkoutStep, setCheckoutStep] = useState<'cart' | 'shipping' | 'success'>('cart');
-  const [orderCode] = useState(() => Math.floor(100000 + Math.random() * 900000));
+  const [orderCode, setOrderCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [shippingInfo, setShippingInfo] = useState({
     name: '',
     phone: '',
@@ -59,32 +55,33 @@ export default function CartDrawer({
   const getTotal = () => getSubtotal() + getShippingFee();
 
   /* ── Handlers ───────────────────────────────────── */
-  const handleCheckoutSubmit = (e: React.FormEvent) => {
+  const orderErrorMessage = (raw: string) => {
+    if (raw.startsWith('insufficient_stock')) return `Sản phẩm "${raw.split(': ')[1] ?? ''}" không đủ hàng. Vui lòng giảm số lượng.`;
+    if (raw.startsWith('product_not_found')) return 'Có sản phẩm trong giỏ không còn được bán. Vui lòng xóa khỏi giỏ.';
+    if (raw.includes('not_authenticated')) return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    if (raw.includes('missing_shipping_info')) return 'Vui lòng nhập đầy đủ thông tin giao hàng.';
+    return 'Không thể đặt hàng lúc này. Vui lòng thử lại.';
+  };
+
+  // Prices and stock are verified in the database (place_order), not trusted from here.
+  const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!shippingInfo.name || !shippingInfo.phone || !shippingInfo.address) {
-      alert('Vui lòng nhập đầy đủ thông tin giao hàng!');
+    setSubmitError('');
+    if (!shippingInfo.name.trim() || !shippingInfo.phone.trim() || !shippingInfo.address.trim()) {
+      setSubmitError('Vui lòng nhập đầy đủ thông tin giao hàng.');
       return;
     }
-    addOrder({
-      id: `${Date.now()}-${orderCode}`,
-      code: `MS-${orderCode}`,
-      date: new Date().toISOString(),
-      customerName: shippingInfo.name,
-      customerEmail: customerEmail ?? 'khach@vanglai.com',
-      items: cartItems.map(item => ({
-        productId: item.product.id,
-        name: item.product.name,
-        grade: item.product.grade,
-        price: item.product.salePrice ?? item.product.price,
-        quantity: item.quantity,
-      })),
-      subtotal: getSubtotal(),
-      shippingFee: getShippingFee(),
-      total: getTotal(),
-    });
-    cartItems.forEach(item => {
-      updateProduct(item.product.id, { stock: Math.max(0, item.product.stock - item.quantity) });
-    });
+    setSubmitting(true);
+    const result = await placeOrder(
+      cartItems.map(item => ({ productId: item.product.id, quantity: item.quantity })),
+      shippingInfo,
+    );
+    setSubmitting(false);
+    if (!result.ok) {
+      setSubmitError(orderErrorMessage(result.error));
+      return;
+    }
+    setOrderCode(result.code);
     setCheckoutStep('success');
   };
 
@@ -331,11 +328,15 @@ export default function CartDrawer({
                     </div>
                   </div>
 
+                  {submitError && (
+                    <p role="alert" className="text-xs font-medium" style={{ color: 'var(--danger)' }}>{submitError}</p>
+                  )}
                   <button
                     type="submit"
+                    disabled={submitting}
                     className="btn-primary mt-2 w-full py-3 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    Xác nhận đặt hàng <ArrowRight size={14} strokeWidth={2} />
+                    {submitting ? 'Đang xử lý…' : <>Xác nhận đặt hàng <ArrowRight size={14} strokeWidth={2} /></>}
                   </button>
                 </form>
               )}
@@ -356,7 +357,7 @@ export default function CartDrawer({
                       Đặt hàng thành công
                     </h3>
                     <p className="text-[11px] mt-1 font-semibold" style={{ color: 'var(--accent)' }}>
-                      Mã đơn: #MS-{orderCode}
+                      Mã đơn: #{orderCode}
                     </p>
                   </div>
 

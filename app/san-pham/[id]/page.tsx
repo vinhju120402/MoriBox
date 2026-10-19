@@ -48,7 +48,7 @@ export default function ProductDetailPage() {
     handleClearCart,
     toggleLike,
     isLoggedIn,
-    isAdmin,
+    isStaff,
     user,
     logout,
   } = useGatedCart();
@@ -96,7 +96,7 @@ export default function ProductDetailPage() {
         onCartClick={() => setIsCartOpen(true)}
         gradeCategories={GRADE_CATEGORIES}
         isLoggedIn={isLoggedIn}
-        isAdmin={isAdmin}
+        isStaff={isStaff}
         userName={user?.name}
         onLogout={logout}
       />
@@ -367,7 +367,6 @@ export default function ProductDetailPage() {
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
           onClearCart={handleClearCart}
-          customerEmail={user?.email}
         />
 
         <SiteFooter />

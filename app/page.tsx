@@ -27,7 +27,7 @@ export default function Home() {
     handleClearCart,
     toggleLike,
     isLoggedIn,
-    isAdmin,
+    isStaff,
     user,
     logout,
   } = useGatedCart();
@@ -49,7 +49,7 @@ export default function Home() {
         onCartClick={() => setIsCartOpen(true)}
         gradeCategories={GRADE_CATEGORIES}
         isLoggedIn={isLoggedIn}
-        isAdmin={isAdmin}
+        isStaff={isStaff}
         userName={user?.name}
         onLogout={logout}
         onShowIntro={restartOnboarding}
@@ -168,7 +168,6 @@ export default function Home() {
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveItem}
         onClearCart={handleClearCart}
-        customerEmail={user?.email}
       />
 
       <SiteFooter />

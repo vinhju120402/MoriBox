@@ -25,14 +25,26 @@ export default function RegisterPage() {
     setRedirectTo(params.get('redirect') || '/');
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitting, setSubmitting] = useState(false);
+  const [notice, setNotice] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const ok = register({ name, email });
-    if (ok) {
+    setNotice('');
+    setSubmitting(true);
+    const result = await register(name, email, password);
+    setSubmitting(false);
+    if (result === 'ok') {
       router.push(redirectTo);
-    } else {
+    } else if (result === 'confirm') {
+      setNotice('Đã gửi email xác nhận. Vui lòng mở hộp thư và bấm vào liên kết để hoàn tất đăng ký.');
+    } else if (result === 'exists') {
       setError('Email này đã có tài khoản. Vui lòng đăng nhập.');
+    } else if (result === 'weak_password') {
+      setError('Mật khẩu chưa đủ mạnh (tối thiểu 6 ký tự).');
+    } else {
+      setError('Không thể đăng ký lúc này. Vui lòng thử lại.');
     }
   };
 
@@ -126,6 +138,12 @@ export default function RegisterPage() {
               Tạo tài khoản để mua sắm nhanh hơn trong lần sau.
             </p>
 
+            {notice && (
+              <div className="mt-5 p-3.5 rounded-xl" style={{ background: 'rgba(34,197,94,0.18)', border: '1px solid rgba(34,197,94,0.3)' }}>
+                <p role="status" className="text-xs leading-relaxed text-white">{notice}</p>
+              </div>
+            )}
+
             {error && (
               <div className="mt-5 flex items-start gap-2.5 p-3.5 rounded-xl" style={{ background: 'rgba(220,38,38,0.18)', border: '1px solid rgba(220,38,38,0.3)' }}>
                 <AlertCircle size={16} strokeWidth={2} className="shrink-0 mt-0.5" style={{ color: '#fca5a5' }} />
@@ -200,9 +218,10 @@ export default function RegisterPage() {
 
               <button
                 type="submit"
+                disabled={submitting}
                 className="btn-primary w-full py-2.5 text-sm font-semibold cursor-pointer"
               >
-                Đăng ký
+                {submitting ? 'Đang xử lý…' : 'Đăng ký'}
               </button>
             </form>
 

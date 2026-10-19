@@ -1,116 +1,165 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { getSupabase } from '../lib/supabase';
+import { Role, isRole, isStaff } from '../lib/permissions';
 
 export interface AuthUser {
+  id: string;
   name: string;
   email: string;
-  isAdmin?: boolean;
-  joinedAt?: string; // ISO timestamp, stamped at registration
+  role: Role;
+  joinedAt?: string; // ISO timestamp
 }
 
-const SESSION_KEY = 'moribox_user';
-const REGISTERED_KEY = 'moribox_registered_users';
+interface ProfileRow {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  created_at: string;
+}
 
-// Seeded admin account — lets /admin be reached without a separate
-// registration flow. Password isn't checked anywhere in this mock auth
-// system (see login below), so any password works here too, same as
-// for every other account.
-const ADMIN_EMAIL = 'admin@moribox.com';
-const ADMIN_USER: AuthUser = { name: 'Quản trị viên', email: ADMIN_EMAIL, isAdmin: true };
+const toUser = (r: ProfileRow): AuthUser => ({
+  id: r.id,
+  name: r.name,
+  email: r.email,
+  role: isRole(r.role) ? r.role : 'customer',
+  joinedAt: r.created_at,
+});
 
-// Exported so the admin "Người dùng" page can list every registered account —
-// there's no backend, so this localStorage list is the only source of truth.
-export function getRegisteredUsers(): AuthUser[] {
-  try {
-    const raw = localStorage.getItem(REGISTERED_KEY);
-    const users: AuthUser[] = raw ? JSON.parse(raw) : [];
-    if (!users.some(u => u.email.toLowerCase() === ADMIN_EMAIL)) {
-      const seeded = [...users, ADMIN_USER];
-      localStorage.setItem(REGISTERED_KEY, JSON.stringify(seeded));
-      return seeded;
-    }
-    return users;
-  } catch {
-    return [ADMIN_USER];
+// ── Shared auth store ────────────────────────────────────────────────
+// Every useAuth() consumer reads the same Supabase session, so login/logout
+// in one component is reflected everywhere immediately.
+interface AuthState {
+  user: AuthUser | null;
+  hasLoaded: boolean;
+}
+
+const SERVER_STATE: AuthState = { user: null, hasLoaded: false };
+let state: AuthState = SERVER_STATE;
+let started = false;
+const listeners = new Set<() => void>();
+
+function setState(next: AuthState) {
+  state = next;
+  listeners.forEach(l => l());
+}
+
+async function loadProfile(userId: string | undefined) {
+  if (!userId) {
+    setState({ user: null, hasLoaded: true });
+    return;
   }
+  const { data } = await getSupabase().from('profiles').select('*').eq('id', userId).maybeSingle<ProfileRow>();
+  setState({ user: data ? toUser(data) : null, hasLoaded: true });
 }
 
-// Local-only mock auth (no backend). "Registered" accounts and the current
-// session both live in localStorage, so login can honestly check whether an
-// account exists instead of always pretending to succeed.
-export function useAuth() {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [hasLoaded, setHasLoaded] = useState(false);
+function start() {
+  if (started || typeof window === 'undefined') return;
+  started = true;
+  const supabase = getSupabase();
+  supabase.auth.getSession().then(({ data }) => loadProfile(data.session?.user.id));
+  supabase.auth.onAuthStateChange((_event, session) => {
+    // Don't await Supabase calls inside this callback (it can deadlock) — defer.
+    setTimeout(() => { void loadProfile(session?.user.id); }, 0);
+  });
+}
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(SESSION_KEY);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (saved) setUser(JSON.parse(saved));
-    } catch {
-      setUser(null);
-    }
-    setHasLoaded(true);
+function subscribe(cb: () => void) {
+  start();
+  listeners.add(cb);
+  return () => { listeners.delete(cb); };
+}
+
+const getSnapshot = () => state;
+const getServerSnapshot = () => SERVER_STATE;
+
+export type AuthError = 'invalid_credentials' | 'email_not_confirmed' | 'exists' | 'weak_password' | 'unknown';
+
+function mapError(message: string): AuthError {
+  const m = message.toLowerCase();
+  if (m.includes('invalid login')) return 'invalid_credentials';
+  if (m.includes('not confirmed')) return 'email_not_confirmed';
+  if (m.includes('already registered') || m.includes('already been registered')) return 'exists';
+  if (m.includes('password')) return 'weak_password';
+  return 'unknown';
+}
+
+export function useAuth() {
+  const { user, hasLoaded } = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  // Returns null on success, or an error code.
+  const login = useCallback(async (email: string, password: string): Promise<AuthError | null> => {
+    const { error } = await getSupabase().auth.signInWithPassword({ email: email.trim(), password });
+    return error ? mapError(error.message) : null;
   }, []);
 
-  // Returns false if no account exists with this email — caller should
-  // prompt the user to register instead.
-  const login = (email: string): boolean => {
-    const account = getRegisteredUsers().find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!account) return false;
-    setUser(account);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(account));
-    return true;
-  };
+  // Returns 'ok' (signed in), 'confirm' (check email to finish), or an error code.
+  const register = useCallback(async (name: string, email: string, password: string): Promise<'ok' | 'confirm' | AuthError> => {
+    const { data, error } = await getSupabase().auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: { name: name.trim() } },
+    });
+    if (error) return mapError(error.message);
+    // Supabase returns a fake user with no identities when the email is taken.
+    if (data.user && data.user.identities?.length === 0) return 'exists';
+    return data.session ? 'ok' : 'confirm';
+  }, []);
 
-  // Returns false if an account with this email already exists.
-  const register = (newUser: AuthUser): boolean => {
-    const users = getRegisteredUsers();
-    if (users.some(u => u.email.toLowerCase() === newUser.email.toLowerCase())) return false;
-    const stamped: AuthUser = { ...newUser, joinedAt: new Date().toISOString() };
-    localStorage.setItem(REGISTERED_KEY, JSON.stringify([...users, stamped]));
-    setUser(stamped);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(stamped));
-    return true;
-  };
+  const logout = useCallback(async () => {
+    await getSupabase().auth.signOut();
+  }, []);
 
-  // Updates name/email on the session and the registered-accounts list.
-  const updateProfile = (name: string, email: string): 'ok' | 'invalid' | 'exists' => {
-    const trimmedName = name.trim();
-    const trimmedEmail = email.trim();
-    if (!user || !trimmedName || !/^\S+@\S+\.\S+$/.test(trimmedEmail)) return 'invalid';
-    const users = getRegisteredUsers();
-    const taken = users.some(u =>
-      u.email.toLowerCase() === trimmedEmail.toLowerCase() && u.email.toLowerCase() !== user.email.toLowerCase());
-    if (taken) return 'exists';
-    // The seeded admin is identified by its email, so that stays fixed.
-    const nextEmail = user.isAdmin ? user.email : trimmedEmail;
-    const updated: AuthUser = { ...user, name: trimmedName, email: nextEmail };
-    localStorage.setItem(
-      REGISTERED_KEY,
-      JSON.stringify(users.map(u => (u.email.toLowerCase() === user.email.toLowerCase() ? updated : u))),
-    );
-    localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
-    setUser(updated);
+  // Only the display name is editable — the email is the login identity.
+  const updateProfile = useCallback(async (name: string): Promise<'ok' | 'invalid' | 'error'> => {
+    const trimmed = name.trim();
+    if (!user || !trimmed) return 'invalid';
+    const { error } = await getSupabase().from('profiles').update({ name: trimmed }).eq('id', user.id);
+    if (error) return 'error';
+    setState({ ...state, user: { ...user, name: trimmed } });
     return 'ok';
-  };
+  }, [user]);
 
-  // Removes the account from this device and ends the session. The seeded
-  // admin can't be deleted (it would just be re-seeded).
-  const deleteAccount = (): boolean => {
-    if (!user || user.isAdmin) return false;
-    const remaining = getRegisteredUsers().filter(u => u.email.toLowerCase() !== user.email.toLowerCase());
-    localStorage.setItem(REGISTERED_KEY, JSON.stringify(remaining));
-    localStorage.removeItem(SESSION_KEY);
-    setUser(null);
+  // Server-side RPC (security definer) — a browser can't delete auth users itself.
+  const deleteAccount = useCallback(async (): Promise<boolean> => {
+    if (!user || isStaff(user.role)) return false;
+    const { error } = await getSupabase().rpc('delete_my_account');
+    if (error) return false;
+    await getSupabase().auth.signOut();
     return true;
-  };
+  }, [user]);
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem(SESSION_KEY);
-  };
+  return { user, isLoggedIn: !!user, role: user?.role, isAdmin: user?.role === 'admin', isStaff: isStaff(user?.role), hasLoaded, login, register, logout, updateProfile, deleteAccount };
+}
 
-  return { user, isLoggedIn: !!user, isAdmin: !!user?.isAdmin, hasLoaded, login, register, logout, updateProfile, deleteAccount };
+// Admin-only: every registered profile (RLS returns just your own row to non-admins),
+// plus setRole() to change roles - enforced again server-side by set_user_role().
+export function useAllProfiles() {
+  const { user } = useAuth();
+  const [users, setUsers] = useState<AuthUser[]>([]);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    if (user?.role !== 'admin') return;
+    let cancelled = false;
+    getSupabase()
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        if (!cancelled && data) setUsers((data as ProfileRow[]).map(toUser));
+      });
+    return () => { cancelled = true; };
+  }, [user?.role, version]);
+
+  const setRole = useCallback(async (userId: string, role: Role): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const { error } = await getSupabase().rpc('set_user_role', { p_user_id: userId, p_role: role });
+    if (error) return { ok: false, error: error.message };
+    setVersion(v => v + 1);
+    return { ok: true };
+  }, []);
+
+  return { users: user?.role === 'admin' ? users : [], setRole };
 }

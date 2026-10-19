@@ -14,6 +14,7 @@ import { useTheme, ThemePreference } from '../../hooks/use-theme';
 import { useDisplay, TextSize } from '../../hooks/use-display';
 import { useLanguage } from '../../hooks/use-language';
 import { AuthUser } from '../../hooks/use-auth';
+import { ROLE_LABEL, isStaff as isStaffRole } from '../../lib/permissions';
 import { DictionaryKey, Language } from '../i18n/dictionary';
 import { GRADE_CATEGORIES } from '../data/products';
 
@@ -58,15 +59,14 @@ function ProfileForm({
 }: {
   user: AuthUser;
   t: T;
-  onSave: (name: string, email: string) => 'ok' | 'invalid' | 'exists';
+  onSave: (name: string) => Promise<'ok' | 'invalid' | 'error'>;
 }) {
   const [name, setName] = useState(user.name);
-  const [email, setEmail] = useState(user.email);
-  const [status, setStatus] = useState<'idle' | 'ok' | 'invalid' | 'exists'>('idle');
+  const [status, setStatus] = useState<'idle' | 'ok' | 'invalid' | 'error'>('idle');
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setStatus(onSave(name, email));
+    setStatus(await onSave(name));
   };
 
   const joined = user.joinedAt
@@ -94,19 +94,19 @@ function ProfileForm({
         <input
           id="profile-email"
           type="email"
-          value={email}
-          onChange={e => { setEmail(e.target.value); setStatus('idle'); }}
-          required
-          disabled={user.isAdmin}
+          value={user.email}
+          readOnly
+          disabled
           className="input-field w-full px-3.5 py-2.5 text-sm disabled:opacity-60"
         />
+        <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>{t('settings.account.emailLocked')}</p>
       </div>
 
       <dl className="grid grid-cols-2 gap-4 text-xs pt-1">
         <div>
           <dt style={{ color: 'var(--text-muted)' }}>{t('settings.account.role')}</dt>
           <dd className="font-semibold mt-0.5" style={{ color: 'var(--text-primary)' }}>
-            {user.isAdmin ? t('settings.account.roleAdmin') : t('settings.account.roleCustomer')}
+            {ROLE_LABEL[user.role]}
           </dd>
         </div>
         {joined && (
@@ -124,7 +124,7 @@ function ProfileForm({
         <p role="status" className="text-xs font-medium" style={{ color: status === 'ok' ? '#16a34a' : 'var(--danger)' }}>
           {status === 'ok' && t('common.saved')}
           {status === 'invalid' && t('settings.account.invalid')}
-          {status === 'exists' && t('settings.account.emailTaken')}
+          {status === 'error' && t('settings.account.saveError')}
         </p>
       </div>
     </form>
@@ -142,7 +142,7 @@ export default function SettingsPage() {
     likedProducts,
     toggleLike,
     isLoggedIn,
-    isAdmin,
+    isStaff,
     hasLoaded,
     user,
     logout,
@@ -172,7 +172,7 @@ export default function SettingsPage() {
         onCartClick={() => setIsCartOpen(true)}
         gradeCategories={GRADE_CATEGORIES}
         isLoggedIn={isLoggedIn}
-        isAdmin={isAdmin}
+        isStaff={isStaff}
         userName={user?.name}
         onLogout={logout}
       />
@@ -382,13 +382,13 @@ export default function SettingsPage() {
                         <div>
                           <p className="text-sm font-semibold" style={{ color: 'var(--danger)' }}>{t('settings.security.delete')}</p>
                           <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                            {user.isAdmin ? t('settings.security.adminLocked') : t('settings.security.deleteHint')}
+                            {isStaffRole(user.role) ? t('settings.security.adminLocked') : t('settings.security.deleteHint')}
                           </p>
                         </div>
-                        {!user.isAdmin && (confirmDelete ? (
+                        {!isStaffRole(user.role) && (confirmDelete ? (
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => { handleClearCart(); likedProducts.forEach(id => toggleLike(id)); deleteAccount(); }}
+                              onClick={async () => { const ok = await deleteAccount(); if (ok) { handleClearCart(); likedProducts.forEach(id => toggleLike(id)); } }}
                               className="px-4 py-2 text-xs font-semibold rounded-full cursor-pointer text-white"
                               style={{ background: 'var(--danger)' }}
                             >
@@ -425,7 +425,6 @@ export default function SettingsPage() {
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
           onClearCart={handleClearCart}
-          customerEmail={user?.email}
         />
 
         <SiteFooter />
