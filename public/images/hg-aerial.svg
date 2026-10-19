@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <pattern id="grid-hg2" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#92700c" stroke-opacity="0.08" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="glow-hg2" cx="50%" cy="42%" r="55%">
+      <stop offset="0%" stop-color="#92700c" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#92700c" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="400" rx="28" fill="#faf3df"/>
+  <rect width="400" height="400" rx="28" fill="url(#grid-hg2)"/>
+  <circle cx="200" cy="168" r="150" fill="url(#glow-hg2)"/>
+
+  <!-- wing fins -->
+  <polygon points="150,270 50,220 65,270 50,320 150,300" fill="#dbeafe"/>
+  <polygon points="250,270 350,220 335,270 350,320 250,300" fill="#dbeafe"/>
+  <polygon points="150,270 50,220 65,270 50,320 150,300" fill="none" stroke="#1d4ed8" stroke-width="3"/>
+  <polygon points="250,270 350,220 335,270 350,320 250,300" fill="none" stroke="#1d4ed8" stroke-width="3"/>
+
+  <!-- shoulders -->
+  <polygon points="85,300 155,272 160,360 78,372" fill="#f8fafc" stroke="#94a3b8" stroke-width="3"/>
+  <polygon points="315,300 245,272 240,360 322,372" fill="#f8fafc" stroke="#94a3b8" stroke-width="3"/>
+
+  <!-- chest -->
+  <polygon points="150,235 250,235 262,320 138,320" fill="#e2e8f0"/>
+  <polygon points="150,235 250,235 240,270 160,270" fill="#1d4ed8"/>
+
+  <!-- neck -->
+  <rect x="188" y="200" width="24" height="38" fill="#cbd5e1"/>
+
+  <!-- head -->
+  <polygon points="165,120 235,120 250,150 235,182 165,182 150,150" fill="#f8fafc"/>
+  <polygon points="165,120 235,120 250,150 235,182 165,182 150,150" fill="none" stroke="#94a3b8" stroke-width="4"/>
+
+  <!-- twin fin antenna -->
+  <polygon points="150,150 118,132 134,158" fill="#f8fafc" stroke="#94a3b8" stroke-width="3"/>
+  <polygon points="250,150 282,132 266,158" fill="#f8fafc" stroke="#94a3b8" stroke-width="3"/>
+
+  <!-- visor -->
+  <rect x="172" y="142" width="56" height="14" rx="6" fill="#dc2626" opacity="0.85"/>
+
+  <!-- accent vents -->
+  <rect x="120" y="330" width="30" height="8" rx="2" fill="#1d4ed8"/>
+  <rect x="250" y="330" width="30" height="8" rx="2" fill="#1d4ed8"/>
+</svg>

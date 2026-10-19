@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <pattern id="grid-hg1" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#92700c" stroke-opacity="0.08" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="glow-hg1" cx="50%" cy="42%" r="55%">
+      <stop offset="0%" stop-color="#92700c" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#92700c" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="400" rx="28" fill="#faf3df"/>
+  <rect width="400" height="400" rx="28" fill="url(#grid-hg1)"/>
+  <circle cx="200" cy="168" r="150" fill="url(#glow-hg1)"/>
+
+  <!-- clawed shoulder guards -->
+  <polygon points="60,270 150,260 158,360 55,375 40,320" fill="#374151"/>
+  <polygon points="340,270 250,260 242,360 345,375 360,320" fill="#374151"/>
+  <polygon points="55,375 45,395 65,378" fill="#374151"/>
+  <polygon points="345,375 355,395 335,378" fill="#374151"/>
+
+  <!-- chest -->
+  <polygon points="150,235 250,235 262,320 138,320" fill="#1f2937"/>
+  <polygon points="150,235 250,235 240,270 160,270" fill="#374151"/>
+
+  <!-- neck -->
+  <rect x="188" y="200" width="24" height="38" fill="#1f2937"/>
+
+  <!-- head (angular, horned) -->
+  <polygon points="168,124 232,124 248,152 230,184 170,184 152,152" fill="#e5e7eb"/>
+  <polygon points="168,124 232,124 248,152 230,184 170,184 152,152" fill="none" stroke="#1f2937" stroke-width="4"/>
+  <polygon points="180,124 172,92 196,122" fill="#92700c"/>
+  <polygon points="220,124 228,92 204,122" fill="#92700c"/>
+
+  <!-- visor -->
+  <rect x="174" y="146" width="52" height="12" rx="5" fill="#dc2626" opacity="0.85"/>
+
+  <!-- accent vents -->
+  <rect x="118" y="330" width="30" height="8" rx="2" fill="#92700c"/>
+  <rect x="252" y="330" width="30" height="8" rx="2" fill="#92700c"/>
+</svg>

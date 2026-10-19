@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <pattern id="grid-pg" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#b3450f" stroke-opacity="0.08" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="glow-pg" cx="50%" cy="42%" r="55%">
+      <stop offset="0%" stop-color="#b3450f" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#b3450f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="400" rx="28" fill="#fbeee6"/>
+  <rect width="400" height="400" rx="28" fill="url(#grid-pg)"/>
+  <circle cx="200" cy="168" r="150" fill="url(#glow-pg)"/>
+
+  <!-- shoulders / pauldrons -->
+  <polygon points="70,300 150,270 158,360 60,372" fill="#b3450f"/>
+  <polygon points="330,300 250,270 242,360 340,372" fill="#b3450f"/>
+  <polygon points="70,300 150,270 158,360 60,372" fill="#000" opacity="0.08"/>
+
+  <!-- chest / collar -->
+  <polygon points="150,235 250,235 262,320 138,320" fill="#c2440e"/>
+  <polygon points="150,235 250,235 240,270 160,270" fill="#e8703a"/>
+
+  <!-- neck -->
+  <rect x="188" y="200" width="24" height="38" fill="#b3450f"/>
+
+  <!-- head -->
+  <polygon points="165,120 235,120 250,150 235,182 165,182 150,150" fill="#dfe3e8"/>
+  <polygon points="165,120 235,120 250,150 235,182 165,182 150,150" fill="none" stroke="#b3450f" stroke-width="4"/>
+
+  <!-- unicorn horn / antenna -->
+  <polygon points="196,60 204,60 210,120 190,120" fill="#f2c94c"/>
+
+  <!-- twin V-fin antenna -->
+  <polygon points="150,150 118,132 134,158" fill="#dfe3e8" stroke="#b3450f" stroke-width="3"/>
+  <polygon points="250,150 282,132 266,158" fill="#dfe3e8" stroke="#b3450f" stroke-width="3"/>
+
+  <!-- visor -->
+  <rect x="172" y="142" width="56" height="14" rx="6" fill="#22c55e" opacity="0.85"/>
+
+  <!-- accent vents -->
+  <rect x="120" y="330" width="30" height="8" rx="2" fill="#f2c94c"/>
+  <rect x="250" y="330" width="30" height="8" rx="2" fill="#f2c94c"/>
+</svg>

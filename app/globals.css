@@ -1,0 +1,992 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  --bg-base: #f7f8f9;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #ffffff;
+
+  --accent: #ff5a1f;
+  --accent-dim: rgba(255, 90, 31, 0.12);
+  --accent-shadow: rgba(255, 90, 31, 0.35);
+
+  --danger: #d64550;
+
+  --text-primary: #14161a;
+  --text-secondary: #5b6470;
+  --text-muted: #8b93a0;
+
+  --border-subtle: rgba(20, 22, 26, 0.08);
+  --border-strong: rgba(20, 22, 26, 0.16);
+
+  /* Grade badge hues — desaturated, refined, categorical only */
+  --grade-pg-bg: rgba(194, 65, 12, 0.12);
+  --grade-pg-fg: #b3450f;
+  --grade-mg-bg: rgba(71, 85, 105, 0.14);
+  --grade-mg-fg: #475569;
+  --grade-rg-bg: rgba(13, 118, 110, 0.12);
+  --grade-rg-fg: #0d766e;
+  --grade-hg-bg: rgba(161, 128, 14, 0.14);
+  --grade-hg-fg: #92700c;
+  --grade-eg-bg: rgba(47, 102, 144, 0.12);
+  --grade-eg-fg: #2f6690;
+  --grade-sd-bg: rgba(168, 50, 107, 0.12);
+  --grade-sd-fg: #a8326b;
+  --grade-acc-bg: rgba(75, 85, 99, 0.12);
+  --grade-acc-fg: #4b5563;
+
+  --font-display: 'Outfit', sans-serif;
+  --font-jakarta: 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Light is the base theme; the "Hangar" dark theme is defined near the end of this file. */
+
+/* ── Base ───────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-jakarta);
+  overflow-x: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* ── Typography ─────────────────────────────────────── */
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* ── Scrollbar ──────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* ── Keyframes ──────────────────────────────────────── */
+@keyframes fade-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes check-pop {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+
+  60% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ── Scroll-reveal ───────────────────────────────────── */
+.fade-up {
+  animation: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-check-pop {
+  animation: check-pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .fade-up,
+  .animate-check-pop {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* ── Promo carousel ─────────────────────────────────── */
+.promo-slide {
+  transition: opacity 0.6s ease;
+}
+
+.promo-dot {
+  height: 6px;
+  border-radius: 9999px;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .promo-slide {
+    transition-duration: 0.01ms;
+  }
+}
+
+/* ── Surfaces ───────────────────────────────────────── */
+.card-surface {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(20, 22, 26, 0.04), 0 8px 24px -8px rgba(20, 22, 26, 0.10);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, border-color 0.3s ease, background-color 0.3s ease;
+}
+
+.card-surface.is-interactive:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 2px 4px rgba(20, 22, 26, 0.06), 0 16px 32px -10px rgba(20, 22, 26, 0.18);
+  border-color: var(--border-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-surface.is-interactive:hover {
+    transform: none;
+  }
+}
+
+/* ── Onboarding: 3D floating icon + card-flip slide transition ── */
+.onboard-stage-3d {
+  perspective: 1200px;
+}
+
+.onboard-slide-3d {
+  transform-style: preserve-3d;
+  animation: onboard-flip-in 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes onboard-flip-in {
+  from {
+    transform: rotateY(90deg) scale(0.92);
+    opacity: 0;
+  }
+
+  to {
+    transform: rotateY(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+.onboard-icon-3d {
+  animation: onboard-float 4s ease-in-out infinite;
+  transform-style: preserve-3d;
+}
+
+@keyframes onboard-float {
+
+  0%,
+  100% {
+    translate: 0 0;
+  }
+
+  50% {
+    translate: 0 -8px;
+  }
+}
+
+.onboard-icon-shadow {
+  animation: onboard-shadow-pulse 4s ease-in-out infinite;
+}
+
+@keyframes onboard-shadow-pulse {
+
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.35;
+  }
+
+  50% {
+    transform: scaleX(0.65);
+    opacity: 0.15;
+  }
+}
+
+.onboard-star {
+  animation-name: onboard-twinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes onboard-twinkle {
+
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: scale(0.8);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.3);
+  }
+}
+
+.onboard-gundam-fly {
+  animation: onboard-gundam-drift 9s ease-in-out infinite;
+}
+
+@keyframes onboard-gundam-drift {
+  0% {
+    translate: 0 0;
+    rotate: -4deg;
+  }
+
+  25% {
+    translate: 16px -22px;
+    rotate: 2deg;
+  }
+
+  50% {
+    translate: -8px -36px;
+    rotate: -3deg;
+  }
+
+  75% {
+    translate: -20px -12px;
+    rotate: 3deg;
+  }
+
+  100% {
+    translate: 0 0;
+    rotate: -4deg;
+  }
+}
+
+/* Second flight path — opposite drift direction, slower, so it never syncs
+   with the first unit. */
+.onboard-gundam-fly-2 {
+  animation: onboard-gundam-drift-2 12s ease-in-out infinite;
+  animation-delay: -3s;
+}
+
+@keyframes onboard-gundam-drift-2 {
+  0% {
+    translate: 0 0;
+    rotate: 3deg;
+  }
+
+  25% {
+    translate: -18px -14px;
+    rotate: -2deg;
+  }
+
+  50% {
+    translate: -30px 10px;
+    rotate: 4deg;
+  }
+
+  75% {
+    translate: -10px 24px;
+    rotate: -3deg;
+  }
+
+  100% {
+    translate: 0 0;
+    rotate: 3deg;
+  }
+}
+
+/* Third flight path — smallest, fastest, tighter loop (reads as further away). */
+.onboard-gundam-fly-3 {
+  animation: onboard-gundam-drift-3 7s ease-in-out infinite;
+  animation-delay: -1.5s;
+}
+
+@keyframes onboard-gundam-drift-3 {
+  0% {
+    translate: 0 0;
+    rotate: -6deg;
+  }
+
+  33% {
+    translate: -12px 16px;
+    rotate: 4deg;
+  }
+
+  66% {
+    translate: 14px 10px;
+    rotate: -5deg;
+  }
+
+  100% {
+    translate: 0 0;
+    rotate: -6deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboard-star {
+    animation: none;
+    opacity: 0.6;
+  }
+
+  .onboard-gundam-fly,
+  .onboard-gundam-fly-2,
+  .onboard-gundam-fly-3 {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboard-slide-3d {
+    animation: none;
+  }
+
+  .onboard-icon-3d,
+  .onboard-icon-shadow {
+    animation: none;
+  }
+}
+
+/* ── Accessibility: keyboard focus ─────────────────────
+   Consistent ring for keyboard users; mouse clicks never
+   trigger :focus-visible so this stays invisible on click. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Buttons ────────────────────────────────────────── */
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 9999px;
+  box-shadow: 0 8px 20px -6px var(--accent-shadow);
+  transition: box-shadow 0.25s ease, transform 0.15s ease, background-color 0.25s ease;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 10px 26px -6px var(--accent-shadow);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  border-radius: 9999px;
+  transition: border-color 0.25s ease, background-color 0.25s ease, color 0.25s ease, transform 0.15s ease;
+}
+
+.btn-outline:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.btn-outline:active {
+  transform: scale(0.98);
+}
+
+.btn-outline:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
+  background: transparent;
+  transform: none;
+}
+
+.btn-tinted {
+  background: var(--accent-dim);
+  border: 1px solid transparent;
+  color: var(--accent);
+  border-radius: 9999px;
+  transition: background-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.btn-tinted:hover {
+  box-shadow: 0 6px 16px -6px var(--accent-shadow);
+}
+
+/* Ghost/outline utility buttons: close (X), reset, icon-only actions. */
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  transition: color 0.25s ease, border-color 0.25s ease, background-color 0.25s ease;
+}
+
+.btn-ghost:hover {
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+  background: var(--bg-base);
+}
+
+/* Navbar cart pill */
+.nav-pill {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  border-radius: 9999px;
+  transition: border-color 0.25s ease, background-color 0.25s ease;
+}
+
+.nav-pill:hover {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* Grade filter pill */
+.filter-pill {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  border-radius: 9999px;
+  transition: color 0.25s ease, border-color 0.25s ease, background-color 0.25s ease;
+}
+
+.filter-pill:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+.filter-pill.active {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-base);
+}
+
+/* ── Trust strip: inline row, no card boxes, hairline dividers between items ── */
+.trust-item {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.trust-item:first-child {
+  border-left: none;
+}
+
+/* ── Product image well: soft radial tint so photography pops off white ── */
+.media-well {
+  background: radial-gradient(circle at 50% 40%, var(--accent-dim), var(--bg-base) 72%);
+}
+
+/* ── Grade badges (categorical, desaturated) ─────────── */
+.badge-grade {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 9999px;
+  font-weight: 700;
+}
+
+.badge-grade-pg {
+  background: var(--grade-pg-bg);
+  color: var(--grade-pg-fg);
+}
+
+.badge-grade-mg {
+  background: var(--grade-mg-bg);
+  color: var(--grade-mg-fg);
+}
+
+.badge-grade-rg {
+  background: var(--grade-rg-bg);
+  color: var(--grade-rg-fg);
+}
+
+.badge-grade-hg {
+  background: var(--grade-hg-bg);
+  color: var(--grade-hg-fg);
+}
+
+.badge-grade-eg {
+  background: var(--grade-eg-bg);
+  color: var(--grade-eg-fg);
+}
+
+.badge-grade-sd {
+  background: var(--grade-sd-bg);
+  color: var(--grade-sd-fg);
+}
+
+.badge-grade-acc {
+  background: var(--grade-acc-bg);
+  color: var(--grade-acc-fg);
+}
+
+/* ── Form fields ────────────────────────────────────── */
+.input-field {
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  border-radius: 12px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-field::placeholder {
+  color: var(--text-muted);
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+/* Footer / inline text links */
+.link-fade {
+  color: var(--text-secondary);
+  transition: color 0.25s ease;
+}
+
+.link-fade:hover {
+  color: var(--accent);
+}
+
+/* Like (heart) button */
+.like-btn {
+  color: var(--text-muted);
+  transition: color 0.25s ease;
+}
+
+.like-btn:hover,
+.like-btn.is-liked {
+  color: var(--danger);
+}
+
+/* Cart quantity stepper buttons */
+.qty-btn {
+  color: var(--text-secondary);
+  transition: color 0.25s ease;
+}
+
+.qty-btn:hover {
+  color: var(--accent);
+}
+
+.qty-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  color: var(--text-muted);
+}
+
+/* Remove-item (trash) button */
+.trash-btn {
+  color: var(--text-muted);
+  transition: color 0.25s ease;
+}
+
+.trash-btn:hover {
+  color: var(--danger);
+}
+
+/* Image-not-available placeholder */
+.img-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  padding: 6px;
+  color: var(--text-muted);
+}
+
+/* Step indicator (cart drawer) */
+.step-tab {
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  transition: color 0.25s ease, border-color 0.25s ease;
+}
+
+.step-tab.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ── HUD / Blueprint system (homepage identity) ────────
+   Technical-schematic motif: monospace readouts, corner
+   brackets, dotted measurement grids. Used sparingly so it
+   reads as a design signature, not noise. */
+.font-hud {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+/* Hide native scrollbar on horizontally-scrolling carousels
+   (arrow buttons + drag/swipe are the intended controls).
+   Three-part cross-browser fallback (all are required):
+     ① scrollbar-width: none        → Firefox, Chrome 121+  (W3C standard)
+     ② -ms-overflow-style: none     → IE / legacy Edge
+     ③ ::-webkit-scrollbar          → Safari, older Chrome, Samsung Internet
+   The IDE may warn that ① is unsupported in older browsers — this is expected;
+   ② and ③ cover those browsers as fallbacks. */
+.no-scrollbar {
+  /* noinspection CssUnknownProperty */
+  scrollbar-width: none;
+  /* W3C – Firefox & Chrome 121+ */
+  -ms-overflow-style: none;
+  /* IE / old Edge */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  /* Safari, older Chrome, Samsung Internet */
+}
+
+/* ══════════════════════════════════════════════════════
+   Signature polish — HUD hologram layer
+   Pure CSS, additive. All motion respects reduced-motion.
+   ══════════════════════════════════════════════════════ */
+
+/* Product card: corner brackets + shimmer sweep + image lift on hover */
+.card-surface.is-interactive {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-surface.is-interactive::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  pointer-events: none;
+  z-index: 2;
+  border-radius: 12px;
+  opacity: 0;
+  transition: opacity 0.3s ease, inset 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --b: var(--accent);
+  background:
+    linear-gradient(var(--b), var(--b)) top left / 14px 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) top left / 2px 14px no-repeat,
+    linear-gradient(var(--b), var(--b)) top right / 14px 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) top right / 2px 14px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom left / 14px 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom left / 2px 14px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom right / 14px 2px no-repeat,
+    linear-gradient(var(--b), var(--b)) bottom right / 2px 14px no-repeat;
+}
+
+.card-surface.is-interactive:hover::before {
+  opacity: 1;
+  inset: 4px;
+}
+
+.card-surface.is-interactive::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -60%;
+  width: 40%;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: skewX(-18deg);
+}
+
+.card-surface.is-interactive:hover::after {
+  left: 130%;
+  transition: left 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-surface.is-interactive:hover .media-well img {
+  transform: scale(1.08) translateY(-3px);
+}
+
+.media-well img {
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Buy button: gradient that slowly flows */
+.btn-primary {
+  background: linear-gradient(110deg, var(--accent), #ff8a3d, var(--accent));
+  background-size: 200% 100%;
+  transition: box-shadow 0.25s ease, transform 0.15s ease, background-position 0.6s ease;
+}
+
+.btn-primary:hover {
+  background-position: 100% 0;
+  transform: translateY(-1px);
+}
+
+/* Banner: dotted measurement grid + sweeping scanline + floating portholes */
+.banner-hud {
+  position: relative;
+}
+
+.banner-hud::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.28) 1px, transparent 1.2px);
+  background-size: 18px 18px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 40%, #000);
+  mask-image: linear-gradient(90deg, transparent, #000 40%, #000);
+}
+
+.banner-hud::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 90px;
+  left: -120px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  animation: banner-scan 6s ease-in-out infinite;
+}
+
+@keyframes banner-scan {
+  0%   { left: -120px; }
+  55%, 100% { left: 110%; }
+}
+
+.porthole-float {
+  animation: porthole-bob 6s ease-in-out infinite;
+}
+
+.porthole-float:nth-child(2) { animation-delay: -2s; animation-duration: 7s; }
+.porthole-float:nth-child(3) { animation-delay: -4s; animation-duration: 5.5s; }
+
+@keyframes porthole-bob {
+  0%, 100% { translate: 0 0; }
+  50%      { translate: 0 -9px; }
+}
+
+/* Section tag: HUD readout above banners */
+.hud-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.hud-tag::before,
+.hud-tag::after {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent));
+}
+
+.hud-tag::after {
+  transform: scaleX(-1);
+}
+
+/* Trust strip: live status dot */
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+  animation: status-ping 2.2s ease-out infinite;
+}
+
+@keyframes status-ping {
+  0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+  80%, 100% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+}
+
+/* Scroll reveal — progressive enhancement via scroll-driven animations;
+   browsers without support simply show content immediately. */
+@supports (animation-timeline: view()) {
+  .reveal {
+    animation: reveal-in linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 35%;
+  }
+}
+
+@keyframes reveal-in {
+  from { opacity: 0; transform: translateY(32px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Ambient page backdrop: faint blueprint grid + warm glow at top */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 420px at 80% -10%, rgba(255, 90, 31, 0.10), transparent 70%),
+    radial-gradient(rgba(20, 22, 26, 0.07) 1px, transparent 1.2px) 0 0 / 26px 26px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner-hud::after,
+  .porthole-float,
+  .status-dot {
+    animation: none;
+  }
+
+  .reveal {
+    animation: none;
+  }
+
+  .card-surface.is-interactive:hover::after {
+    transition: none;
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════
+   Dark mode — "Hangar"
+   Gunmetal bays, amber work-lights, hazard striping.
+   Activated via <html data-theme="dark"> (set by the Settings page
+   via use-theme + a pre-hydration script in layout to avoid a flash).
+   ══════════════════════════════════════════════════════ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-base: #0b0e13;
+  --bg-surface: #11161d;
+  --bg-card: #161c25;
+  --bg-card-hover: #1b222d;
+
+  --accent: #ff7a2f;
+  --accent-dim: rgba(255, 122, 47, 0.16);
+  --accent-shadow: rgba(255, 122, 47, 0.45);
+
+  --danger: #ff6670;
+
+  --text-primary: #e8ecf2;
+  --text-secondary: #a3adbb;
+  --text-muted: #6f7a8a;
+
+  --border-subtle: rgba(160, 185, 220, 0.10);
+  --border-strong: rgba(160, 185, 220, 0.22);
+
+  --grade-pg-bg: rgba(251, 146, 60, 0.18);
+  --grade-pg-fg: #fdba74;
+  --grade-mg-bg: rgba(148, 163, 184, 0.18);
+  --grade-mg-fg: #cbd5e1;
+  --grade-rg-bg: rgba(45, 212, 191, 0.16);
+  --grade-rg-fg: #5eead4;
+  --grade-hg-bg: rgba(250, 204, 21, 0.16);
+  --grade-hg-fg: #fde047;
+  --grade-eg-bg: rgba(96, 165, 250, 0.17);
+  --grade-eg-fg: #93c5fd;
+  --grade-sd-bg: rgba(244, 114, 182, 0.17);
+  --grade-sd-fg: #f9a8d4;
+  --grade-acc-bg: rgba(156, 163, 175, 0.17);
+  --grade-acc-fg: #d1d5db;
+}
+
+/* Hangar floor: sodium work-light from above + steel-plate grid */
+:root[data-theme='dark'] body::before {
+  background:
+    radial-gradient(1000px 460px at 78% -12%, rgba(255, 122, 47, 0.16), transparent 70%),
+    radial-gradient(700px 380px at 5% 105%, rgba(56, 130, 246, 0.08), transparent 70%),
+    linear-gradient(rgba(160, 185, 220, 0.045) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(90deg, rgba(160, 185, 220, 0.045) 1px, transparent 1px) 0 0 / 40px 40px;
+}
+
+:root[data-theme='dark'] ::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+:root[data-theme='dark'] .card-surface {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 12px 28px -12px rgba(0, 0, 0, 0.7);
+}
+
+:root[data-theme='dark'] .card-surface.is-interactive:hover {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 0 0 1px var(--accent-dim), 0 18px 36px -12px rgba(255, 122, 47, 0.28);
+}
+
+:root[data-theme='dark'] .card-surface.is-interactive::after {
+  background: linear-gradient(100deg, transparent, rgba(255, 190, 140, 0.18), transparent);
+}
+
+/* Image well reads as a lit display bay */
+:root[data-theme='dark'] .media-well {
+  background: radial-gradient(circle at 50% 38%, rgba(255, 122, 47, 0.22), #0e131a 72%);
+}
+
+:root[data-theme='dark'] .banner-hud {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 20px 50px -20px rgba(0, 0, 0, 0.8);
+}
+
+/* Sidebar: hazard stripe along the bay edge */
+.hangar-stripe {
+  display: none;
+}
+
+:root[data-theme='dark'] .hangar-stripe {
+  display: block;
+  height: 5px;
+  flex-shrink: 0;
+  background: repeating-linear-gradient(-45deg, #ffb020 0 8px, #12161c 8px 16px);
+  opacity: 0.85;
+}
+
+/* Smooth cross-fade when toggling theme */
+html.theme-fade,
+html.theme-fade * {
+  transition: background-color 0.35s ease, border-color 0.35s ease, color 0.35s ease !important;
+}
+
+
+/* ── Display preferences (Settings → Màn hình) ─────────
+   Text size scales every rem-based size; reduce-motion mirrors
+   the OS preference but can be forced on from Settings. */
+:root[data-text='sm'] { font-size: 14px; }
+:root[data-text='lg'] { font-size: 18px; }
+
+:root[data-motion='reduce'] *,
+:root[data-motion='reduce'] *::before,
+:root[data-motion='reduce'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  animation-delay: 0s !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+:root[data-motion='reduce'] .reveal,
+:root[data-motion='reduce'] .banner-hud::after {
+  animation: none;
+}

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <pattern id="grid-acc3" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#4b5563" stroke-opacity="0.08" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="glow-acc3" cx="50%" cy="42%" r="55%">
+      <stop offset="0%" stop-color="#4b5563" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#4b5563" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="400" rx="28" fill="#eef0f2"/>
+  <rect width="400" height="400" rx="28" fill="url(#grid-acc3)"/>
+  <circle cx="200" cy="200" r="150" fill="url(#glow-acc3)"/>
+
+  <!-- bottle 1 -->
+  <rect x="110" y="180" width="56" height="110" rx="10" fill="#dc2626"/>
+  <rect x="122" y="150" width="32" height="34" rx="6" fill="#7f1d1d"/>
+  <rect x="118" y="210" width="44" height="20" rx="4" fill="#fff" opacity="0.85"/>
+
+  <!-- bottle 2 (center, taller) -->
+  <rect x="172" y="150" width="56" height="140" rx="10" fill="#1d4ed8"/>
+  <rect x="184" y="118" width="32" height="34" rx="6" fill="#1e3a8a"/>
+  <rect x="180" y="182" width="44" height="20" rx="4" fill="#fff" opacity="0.85"/>
+
+  <!-- bottle 3 -->
+  <rect x="234" y="180" width="56" height="110" rx="10" fill="#16a34a"/>
+  <rect x="246" y="150" width="32" height="34" rx="6" fill="#166534"/>
+  <rect x="242" y="210" width="44" height="20" rx="4" fill="#fff" opacity="0.85"/>
+
+  <!-- small paint drop accents -->
+  <circle cx="130" cy="320" r="7" fill="#dc2626"/>
+  <circle cx="200" cy="326" r="7" fill="#1d4ed8"/>
+  <circle cx="270" cy="320" r="7" fill="#16a34a"/>
+  <circle cx="165" cy="322" r="5" fill="#eab308"/>
+  <circle cx="235" cy="322" r="5" fill="#a855f7"/>
+</svg>

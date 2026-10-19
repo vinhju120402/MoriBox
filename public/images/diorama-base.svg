@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <defs>
+    <pattern id="grid-acc4" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#4b5563" stroke-opacity="0.08" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="glow-acc4" cx="50%" cy="42%" r="55%">
+      <stop offset="0%" stop-color="#4b5563" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#4b5563" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="400" rx="28" fill="#eef0f2"/>
+  <rect width="400" height="400" rx="28" fill="url(#grid-acc4)"/>
+  <circle cx="200" cy="200" r="150" fill="url(#glow-acc4)"/>
+
+  <!-- base platform -->
+  <polygon points="70,270 330,270 300,320 100,320" fill="#57534e"/>
+  <polygon points="70,270 330,270 300,320 100,320" fill="none" stroke="#292524" stroke-width="3"/>
+  <polygon points="70,270 330,270 310,255 90,255" fill="#78716c"/>
+
+  <!-- rubble / rock chunks -->
+  <polygon points="120,255 150,235 175,252 160,268 130,268" fill="#a8a29e"/>
+  <polygon points="230,252 265,232 292,248 278,266 240,266" fill="#a8a29e"/>
+  <polygon points="180,248 205,236 218,252 200,262 182,260" fill="#d6d3d1"/>
+
+  <!-- cracked ground lines -->
+  <path d="M100 260 L 140 250 L 160 262 L 190 252" fill="none" stroke="#44403c" stroke-width="3"/>
+  <path d="M230 258 L 260 248 L 285 260" fill="none" stroke="#44403c" stroke-width="3"/>
+
+  <!-- small support struts -->
+  <rect x="185" y="200" width="10" height="55" fill="#78716c"/>
+  <rect x="205" y="210" width="8" height="45" fill="#78716c"/>
+
+  <!-- flag marker -->
+  <rect x="300" y="150" width="6" height="70" fill="#4b5563"/>
+  <polygon points="306,150 350,165 306,180" fill="#dc2626"/>
+</svg>
