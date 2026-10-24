@@ -1137,6 +1137,204 @@ begin
 end
 $$;
 
+-- ───────────────────────── Product reviews ─────────────────────────
+-- Only customers whose order for the product was DELIVERED can review it, once per
+-- product (they can edit it). Written through submit_review(); the name shown is
+-- masked ("Trần Quang Vinh" -> "Trần V.") so full names never reach other shoppers.
+create table if not exists public.reviews (
+  id           uuid primary key default gen_random_uuid(),
+  product_id   text not null references public.products (id) on delete cascade,
+  user_id      uuid references auth.users (id) on delete set null,
+  author_name  text not null default 'Khách hàng',
+  rating       integer not null check (rating between 1 and 5),
+  body         text not null default '' check (char_length(body) <= 1000),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  unique (product_id, user_id)
+);
+create index if not exists reviews_product_idx on public.reviews (product_id, created_at desc);
+alter table public.reviews enable row level security;
+
+drop policy if exists "reviews: public read" on public.reviews;
+create policy "reviews: public read" on public.reviews for select using (true);
+-- No insert/update policies: only submit_review() writes. Owner or admin may delete.
+drop policy if exists "reviews: owner or admin delete" on public.reviews;
+create policy "reviews: owner or admin delete" on public.reviews
+  for delete using (user_id = auth.uid() or public.is_admin());
+
+-- Average and count per product, for stars on product cards.
+create or replace view public.product_ratings with (security_invoker = true) as
+  select product_id, round(avg(rating)::numeric, 1) as avg_rating, count(*)::integer as review_count
+    from public.reviews
+   group by product_id;
+grant select on public.product_ratings to anon, authenticated;
+
+create or replace function public.can_review_product(p_product_id text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select auth.uid() is not null and exists (
+    select 1
+      from public.order_items i
+      join public.orders o on o.id = i.order_id
+     where o.user_id = auth.uid() and i.product_id = p_product_id and o.status = 'delivered'
+  );
+$$;
+revoke all on function public.can_review_product(text) from public, anon;
+grant execute on function public.can_review_product(text) to authenticated;
+
+create or replace function public.submit_review(p_product_id text, p_rating integer, p_body text default '')
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_name    text;
+  v_parts   text[];
+  v_display text;
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+  if p_rating is null or p_rating < 1 or p_rating > 5 then
+    raise exception 'invalid_rating';
+  end if;
+  if char_length(coalesce(p_body, '')) > 1000 then
+    raise exception 'review_too_long';
+  end if;
+  if not public.can_review_product(p_product_id) then
+    raise exception 'not_purchased';
+  end if;
+
+  select trim(coalesce(name, '')) into v_name from public.profiles where id = auth.uid();
+  v_parts := regexp_split_to_array(coalesce(v_name, ''), '\s+');
+  v_display := case
+    when coalesce(v_name, '') = '' then 'Khách hàng'
+    when array_length(v_parts, 1) = 1 then v_parts[1]
+    else v_parts[1] || ' ' || left(v_parts[array_length(v_parts, 1)], 1) || '.'
+  end;
+
+  insert into public.reviews (product_id, user_id, author_name, rating, body)
+  values (p_product_id, auth.uid(), v_display, p_rating, trim(coalesce(p_body, '')))
+  on conflict (product_id, user_id) do update
+    set rating = excluded.rating, body = excluded.body, author_name = excluded.author_name, updated_at = now();
+end;
+$$;
+revoke all on function public.submit_review(text, integer, text) from public, anon;
+grant execute on function public.submit_review(text, integer, text) to authenticated;
+
+-- ───────────────────────── Address book ─────────────────────────
+create table if not exists public.addresses (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users (id) on delete cascade,
+  label       text not null default '',
+  name        text not null,
+  phone       text not null,
+  address     text not null,
+  sector      text not null default 'Hà Nội',
+  is_default  boolean not null default false,
+  created_at  timestamptz not null default now()
+);
+create index if not exists addresses_user_idx on public.addresses (user_id);
+create unique index if not exists addresses_one_default on public.addresses (user_id) where is_default;
+alter table public.addresses enable row level security;
+
+drop policy if exists "addresses: own" on public.addresses;
+create policy "addresses: own" on public.addresses
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Create (p_id null) or update an address. The first address becomes the default;
+-- making another one the default clears the previous default first.
+create or replace function public.save_address(
+  p_id uuid, p_label text, p_name text, p_phone text, p_address text, p_sector text, p_default boolean
+)
+returns uuid
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_uid     uuid := auth.uid();
+  v_id      uuid := p_id;
+  v_others  integer;
+  v_default boolean := coalesce(p_default, false);
+begin
+  if v_uid is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+  if coalesce(trim(p_name), '') = '' or coalesce(trim(p_phone), '') = '' or coalesce(trim(p_address), '') = '' then
+    raise exception 'missing_fields';
+  end if;
+
+  select count(*) into v_others from public.addresses where user_id = v_uid and (p_id is null or id <> p_id);
+  if p_id is null and v_others >= 10 then
+    raise exception 'too_many_addresses';
+  end if;
+  if v_others = 0 then
+    v_default := true;
+  end if;
+  if v_default then
+    update public.addresses set is_default = false where user_id = v_uid and is_default;
+  end if;
+
+  if p_id is null then
+    insert into public.addresses (user_id, label, name, phone, address, sector, is_default)
+    values (v_uid, trim(coalesce(p_label, '')), trim(p_name), trim(p_phone), trim(p_address),
+            coalesce(nullif(trim(p_sector), ''), 'Hà Nội'), v_default)
+    returning id into v_id;
+  else
+    update public.addresses
+       set label = trim(coalesce(p_label, '')), name = trim(p_name), phone = trim(p_phone), address = trim(p_address),
+           sector = coalesce(nullif(trim(p_sector), ''), 'Hà Nội'),
+           is_default = case when v_default then true else is_default end
+     where id = p_id and user_id = v_uid;
+    if not found then
+      raise exception 'address_not_found';
+    end if;
+  end if;
+  return v_id;
+end;
+$$;
+revoke all on function public.save_address(uuid, text, text, text, text, text, boolean) from public, anon;
+grant execute on function public.save_address(uuid, text, text, text, text, text, boolean) to authenticated;
+
+create or replace function public.set_default_address(p_id uuid)
+returns void
+language plpgsql
+set search_path = public
+as $$
+begin
+  if not exists (select 1 from public.addresses where id = p_id and user_id = auth.uid()) then
+    raise exception 'address_not_found';
+  end if;
+  update public.addresses set is_default = false where user_id = auth.uid() and is_default;
+  update public.addresses set is_default = true where id = p_id and user_id = auth.uid();
+end;
+$$;
+revoke all on function public.set_default_address(uuid) from public, anon;
+grant execute on function public.set_default_address(uuid) to authenticated;
+
+-- Deleting the default address hands the "default" flag to the newest one left.
+create or replace function public.delete_address(p_id uuid)
+returns void
+language plpgsql
+set search_path = public
+as $$
+begin
+  delete from public.addresses where id = p_id and user_id = auth.uid();
+  if exists (select 1 from public.addresses where user_id = auth.uid())
+     and not exists (select 1 from public.addresses where user_id = auth.uid() and is_default) then
+    update public.addresses set is_default = true
+     where id = (select id from public.addresses where user_id = auth.uid() order by created_at desc limit 1);
+  end if;
+end;
+$$;
+revoke all on function public.delete_address(uuid) from public, anon;
+grant execute on function public.delete_address(uuid) to authenticated;
+
 -- ───────────────────────── Allowlist: how to use ─────────────────────────
 -- 1) Add staff emails (lowercase) with a role - run separately, e.g.:
 --      insert into public.admin_emails (email, role) values

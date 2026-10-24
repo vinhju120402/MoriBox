@@ -81,6 +81,7 @@ const vi = {
   'settings.title': 'Cài đặt',
   'settings.subtitle': 'Quản lý tài khoản, giao diện, ngôn ngữ và quyền riêng tư của bạn.',
   'settings.nav.account': 'Tài khoản',
+  'settings.nav.addresses': 'Địa chỉ',
   'settings.nav.display': 'Màn hình',
   'settings.nav.language': 'Ngôn ngữ',
   'settings.nav.terms': 'Điều khoản',
@@ -99,6 +100,8 @@ const vi = {
   'settings.account.emailLocked': 'Email là tên đăng nhập nên không thể thay đổi.',
   'settings.account.invalid': 'Vui lòng nhập họ tên và email hợp lệ.',
 
+  'settings.addresses.title': 'Địa chỉ giao hàng',
+  'settings.addresses.desc': 'Lưu địa chỉ để thanh toán nhanh hơn. Địa chỉ mặc định được điền sẵn ở bước giao hàng.',
   'settings.display.title': 'Màn hình',
   'settings.display.desc': 'Chọn giao diện và cách hiển thị phù hợp với mắt bạn.',
   'settings.display.theme': 'Chế độ hiển thị',
@@ -244,6 +247,7 @@ const en: Record<DictionaryKey, string> = {
   'settings.title': 'Settings',
   'settings.subtitle': 'Manage your account, display, language and privacy.',
   'settings.nav.account': 'Account',
+  'settings.nav.addresses': 'Addresses',
   'settings.nav.display': 'Display',
   'settings.nav.language': 'Language',
   'settings.nav.terms': 'Terms',
@@ -262,6 +266,8 @@ const en: Record<DictionaryKey, string> = {
   'settings.account.emailLocked': 'Email is your login, so it cannot be changed.',
   'settings.account.invalid': 'Please enter a valid name and email.',
 
+  'settings.addresses.title': 'Delivery addresses',
+  'settings.addresses.desc': 'Save addresses to check out faster. Your default address is pre-filled at checkout.',
   'settings.display.title': 'Display',
   'settings.display.desc': 'Pick the look and feel that suits your eyes.',
   'settings.display.theme': 'Appearance',

@@ -6,6 +6,7 @@ import { X, Trash2, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, Shoppin
 import ProductImage from './product-image';
 import { placeOrder, cancelOrder, previewCoupon, describeOrderError } from '../hooks/use-orders';
 import { useShopSettings } from '../hooks/use-shop-settings';
+import { useAddresses, Address } from '../hooks/use-addresses';
 import { getPaymentMethods, PAYMENT_METHOD_FULL_LABEL, PaymentMethodId, vietQrUrl } from '../lib/payments';
 
 export interface CartItem {
@@ -45,6 +46,8 @@ export default function CartDrawer({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const { settings } = useShopSettings();
+  const { addresses, save: saveAddress } = useAddresses();
+  const [saveForLater, setSaveForLater] = useState(true);
   const methods = getPaymentMethods(settings);
   // Coupon: `appliedCoupon` is the code that was accepted; `couponDiscount` is
   // what the database says it is worth on the current cart.
@@ -92,6 +95,18 @@ export default function CartDrawer({
   const getTotal = () => getSubtotal() - couponDiscount + getShippingFee();
 
   /* ── Handlers ───────────────────────────────────── */
+  const fillFrom = (a: Address) =>
+    setShippingInfo({ name: a.name, phone: a.phone, address: a.address, sector: a.sector });
+
+  // Entering the delivery step: pre-fill the default saved address if the form is still empty.
+  const goToShipping = () => {
+    const def = addresses.find(a => a.isDefault) ?? addresses[0];
+    if (def && !shippingInfo.name && !shippingInfo.phone && !shippingInfo.address) fillFrom(def);
+    setCheckoutStep('shipping');
+  };
+
+  const isSavedAddress = addresses.some(a => a.name === shippingInfo.name && a.phone === shippingInfo.phone && a.address === shippingInfo.address);
+
   const applyCoupon = async () => {
     const code = couponInput.trim().toUpperCase();
     if (!code) return;
@@ -140,6 +155,10 @@ export default function CartDrawer({
     setCancelled(false);
     setCancelError('');
     setPlacedMethod(paymentMethod);
+    // Remember a new address for next time (silently; the order itself already succeeded).
+    if (saveForLater && !isSavedAddress) {
+      void saveAddress({ label: '', name: shippingInfo.name, phone: shippingInfo.phone, address: shippingInfo.address, sector: shippingInfo.sector, isDefault: false });
+    }
     setCheckoutStep('success');
   };
 
@@ -349,6 +368,29 @@ export default function CartDrawer({
                     <span>Xác nhận thông tin giao nhận hàng qua dịch vụ vận chuyển MoriBox Logistics.</span>
                   </div>
 
+                  {addresses.length > 0 && (
+                    <div>
+                      <label htmlFor="saved-address" className="block text-[11px] font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                        Địa chỉ đã lưu
+                      </label>
+                      <select
+                        id="saved-address"
+                        className={inputCls + ' cursor-pointer'}
+                        value={addresses.find(a => a.name === shippingInfo.name && a.phone === shippingInfo.phone && a.address === shippingInfo.address)?.id ?? ''}
+                        onChange={(e) => {
+                          const a = addresses.find(x => x.id === e.target.value);
+                          if (a) fillFrom(a);
+                          else setShippingInfo({ name: '', phone: '', address: '', sector: 'Hà Nội' });
+                        }}
+                      >
+                        <option value="">Nhập địa chỉ mới</option>
+                        {addresses.map(a => (
+                          <option key={a.id} value={a.id}>{(a.label || a.name)}{a.isDefault ? ' (mặc định)' : ''} — {a.address}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   {/* Fields */}
                   <div className="flex flex-col gap-3">
                     {[
@@ -402,6 +444,13 @@ export default function CartDrawer({
                       />
                     </div>
                   </div>
+
+                  {!isSavedAddress && shippingInfo.address.trim() && (
+                    <label className="flex items-center gap-2 text-[11px] font-semibold cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
+                      <input type="checkbox" checked={saveForLater} onChange={(e) => setSaveForLater(e.target.checked)} className="cursor-pointer" />
+                      Lưu địa chỉ này cho lần mua sau
+                    </label>
+                  )}
 
                   {/* Payment method */}
                   <fieldset className="flex flex-col gap-2">
@@ -633,7 +682,7 @@ export default function CartDrawer({
                 </div>
 
                 <button
-                  onClick={() => setCheckoutStep('shipping')}
+                  onClick={goToShipping}
                   className="btn-primary w-full py-3 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
                   Tiến hành thanh toán <ChevronRight size={14} strokeWidth={2} />

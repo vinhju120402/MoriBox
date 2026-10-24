@@ -4,12 +4,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   ChevronRight, Monitor, Moon, Sun, Check, User, SlidersHorizontal, Languages, FileText, ShieldCheck,
-  LogOut, Trash2, Database, ExternalLink,
+  LogOut, Trash2, Database, ExternalLink, MapPin,
 } from 'lucide-react';
 import Navbar from '../../components/navbar';
 import CartDrawer from '../../components/cart-drawer';
 import SiteFooter from '../../components/site-footer';
 import TwoFactor from '../../components/two-factor';
+import AddressBook from '../../components/address-book';
 import { useGatedCart } from '../../hooks/use-gated-cart';
 import { useTheme, ThemePreference } from '../../hooks/use-theme';
 import { useDisplay, TextSize } from '../../hooks/use-display';
@@ -40,6 +41,7 @@ const LANGUAGES: { value: Language; label: DictionaryKey; code: string }[] = [
 
 const SECTIONS: { id: string; label: DictionaryKey; icon: React.ReactNode }[] = [
   { id: 'account', label: 'settings.nav.account', icon: <User size={14} strokeWidth={2} /> },
+  { id: 'addresses', label: 'settings.nav.addresses', icon: <MapPin size={14} strokeWidth={2} /> },
   { id: 'display', label: 'settings.nav.display', icon: <SlidersHorizontal size={14} strokeWidth={2} /> },
   { id: 'language', label: 'settings.nav.language', icon: <Languages size={14} strokeWidth={2} /> },
   { id: 'terms', label: 'settings.nav.terms', icon: <FileText size={14} strokeWidth={2} /> },
@@ -220,6 +222,21 @@ export default function SettingsPage() {
                   </Link>
                 </div>
               )}
+            </section>
+
+            {/* ── Addresses ── */}
+            <section id="addresses" aria-labelledby="addresses-heading" className="scroll-mt-28">
+              <SectionHeader id="addresses" title={t('settings.addresses.title')} desc={t('settings.addresses.desc')} />
+              {user ? (
+                <AddressBook />
+              ) : hasLoaded ? (
+                <div className="card-surface p-5 flex items-center justify-between gap-4 flex-wrap">
+                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{t('settings.account.loginPrompt')}</p>
+                  <Link href="/dang-nhap?redirect=/cai-dat" className="btn-primary px-5 py-2.5 text-sm font-semibold cursor-pointer">
+                    {t('common.login')}
+                  </Link>
+                </div>
+              ) : null}
             </section>
 
             {/* ── Display ── */}

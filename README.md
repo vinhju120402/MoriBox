@@ -6,6 +6,8 @@ Cửa hàng mô hình Gunpla (Gundam) bằng Next.js 16, dữ liệu và đăng 
 
 **Khách hàng**
 - Danh mục theo hạng (PG, MG, RG, HG, EG, SD), trang chi tiết sản phẩm, Flash Sale, hàng mới về, bán chạy
+- Tìm kiếm không cần gõ dấu, bộ lọc (khoảng giá, series, còn hàng, đang giảm giá), trang Yêu thích
+- Đánh giá sao và nhận xét (chỉ khách đã nhận hàng), sổ địa chỉ giao hàng, mua lại đơn cũ, dòng thời gian trạng thái đơn
 - Giỏ hàng, mã giảm giá, thanh toán COD hoặc chuyển khoản QR (VietQR)
 - **Đơn hàng của tôi** với các tab trạng thái, tự hủy đơn chưa thanh toán, yêu cầu hủy và hoàn tiền
 - Đăng ký, đăng nhập, quên mật khẩu, cài đặt (giao diện sáng/tối "Hangar", cỡ chữ, ngôn ngữ Việt/Anh, bảo mật)

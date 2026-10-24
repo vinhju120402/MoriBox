@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { Heart, Plus, ShoppingBag } from 'lucide-react';
 import ProductImage from './product-image';
+import { Stars } from './star-rating';
+import { useProductRatings } from '../hooks/use-product-ratings';
 import { Product } from '../app/data/products';
 
 const getGradeCls = (grade: string) => {
@@ -30,6 +32,7 @@ export default function ProductCard({ product, isLiked, onToggleLike, onQuickAdd
   // `product` already comes from the live catalog (base + admin edits merged),
   // so its `.stock` is the current figure — no separate lookup needed.
   const stock = product.stock;
+  const rating = useProductRatings()[product.id];
   const outOfStock = stock === 0;
 
   return (
@@ -101,6 +104,12 @@ export default function ProductCard({ product, isLiked, onToggleLike, onQuickAdd
           <h4 className="text-sm font-semibold mt-1 line-clamp-1" style={{ color: 'var(--text-primary)' }}>
             {product.name}
           </h4>
+          {rating && rating.count > 0 && (
+            <p className="flex items-center gap-1.5 mt-1">
+              <Stars value={rating.avg} size={11} />
+              <span className="text-[10px] font-medium" style={{ color: 'var(--text-muted)' }}>{rating.avg.toFixed(1)} ({rating.count})</span>
+            </p>
+          )}
           <p className="text-xs mt-1.5 line-clamp-2 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
             {product.description}
           </p>

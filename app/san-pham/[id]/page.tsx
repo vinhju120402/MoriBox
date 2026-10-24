@@ -8,6 +8,7 @@ import Navbar from '../../../components/navbar';
 import CartDrawer from '../../../components/cart-drawer';
 import ProductCard from '../../../components/product-card';
 import ProductImage from '../../../components/product-image';
+import ProductReviews from '../../../components/product-reviews';
 import SiteFooter from '../../../components/site-footer';
 import { useGatedCart } from '../../../hooks/use-gated-cart';
 import { useProductCatalog } from '../../../hooks/use-product-catalog';
@@ -316,6 +317,8 @@ export default function ProductDetailPage() {
               </div>
             )}
           </div>
+
+          <ProductReviews productId={product.id} />
 
           {/* Related products */}
           {relatedProducts.length > 0 && (
