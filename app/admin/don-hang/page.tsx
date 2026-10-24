@@ -7,15 +7,9 @@ import AdminShell from '../../../components/admin-shell';
 import Pagination, { paginate } from '../../../components/pagination';
 import { useOrders, Order, OrderStatus } from '../../../hooks/use-orders';
 import { useAuth } from '../../../hooks/use-auth';
-import { PAYMENT_LABEL, PAYMENT_STATUS_LABEL } from '../../../lib/payments';
-
-const STATUS_LABEL: Record<OrderStatus, string> = {
-  pending: 'Chờ xử lý',
-  confirmed: 'Đã đóng gói',
-  shipping: 'Đang giao',
-  delivered: 'Đã giao',
-  cancelled: 'Đã hủy',
-};
+import { paymentLabelKey, paymentStatusKey } from '../../../lib/payments';
+import { useLanguage } from '../../../hooks/use-language';
+import type { DictionaryKey } from '../../../app/i18n/dictionary';
 
 const STATUS_TONE: Record<OrderStatus, { bg: string; fg: string }> = {
   pending: { bg: 'var(--accent-dim)', fg: 'var(--accent)' },
@@ -26,21 +20,21 @@ const STATUS_TONE: Record<OrderStatus, { bg: string; fg: string }> = {
 };
 
 type Filter = 'all' | OrderStatus;
-const FILTERS: { value: Filter; label: string }[] = [
-  { value: 'all', label: 'Tất cả' },
-  { value: 'pending', label: 'Chờ xử lý' },
-  { value: 'confirmed', label: 'Đã đóng gói' },
-  { value: 'shipping', label: 'Đang giao' },
-  { value: 'delivered', label: 'Đã giao' },
-  { value: 'cancelled', label: 'Đã hủy' },
+const FILTERS: { value: Filter; label: DictionaryKey }[] = [
+  { value: 'all', label: 'adm.orders.filter.all' },
+  { value: 'pending', label: 'adm.status.pending' },
+  { value: 'confirmed', label: 'adm.status.confirmed' },
+  { value: 'shipping', label: 'adm.status.shipping' },
+  { value: 'delivered', label: 'adm.status.delivered' },
+  { value: 'cancelled', label: 'adm.status.cancelled' },
 ];
 
 const money = (v: number) => `${v.toLocaleString('vi-VN')}đ`;
 
-const NEXT_STEP: Partial<Record<OrderStatus, { to: OrderStatus; label: string; icon: typeof Truck }>> = {
-  pending: { to: 'confirmed', label: 'Đã đóng gói', icon: PackageCheck },
-  confirmed: { to: 'shipping', label: 'Giao cho vận chuyển', icon: Truck },
-  shipping: { to: 'delivered', label: 'Đã giao thành công', icon: CheckCheck },
+const NEXT_STEP: Partial<Record<OrderStatus, { to: OrderStatus; label: DictionaryKey; icon: typeof Truck }>> = {
+  pending: { to: 'confirmed', label: 'adm.orders.step.pack', icon: PackageCheck },
+  confirmed: { to: 'shipping', label: 'adm.orders.step.ship', icon: Truck },
+  shipping: { to: 'delivered', label: 'adm.orders.step.deliver', icon: CheckCheck },
 };
 
 // Which roles may take which step — mirrors set_order_status() in the database,
@@ -51,15 +45,16 @@ const STEP_ROLES: Record<string, string[]> = {
   delivered: ['admin', 'accountant'],
 };
 
-function describeError(raw: string) {
-  if (raw.includes('awaiting_payment')) return 'Đơn chuyển khoản này chưa nhận được tiền nên chưa thể đóng gói.';
-  if (raw.includes('order_cancelled')) return 'Đơn này đã bị hủy.';
-  if (raw.includes('invalid_transition')) return 'Bước chuyển trạng thái này không hợp lệ hoặc bạn không có quyền.';
-  return 'Không thể cập nhật trạng thái. Vui lòng thử lại.';
+function describeError(raw: string): DictionaryKey {
+  if (raw.includes('awaiting_payment')) return 'adm.orders.err.awaitingPayment';
+  if (raw.includes('order_cancelled')) return 'adm.orders.err.cancelled';
+  if (raw.includes('invalid_transition')) return 'adm.orders.err.invalidTransition';
+  return 'adm.orders.err.generic';
 }
 
 export default function AdminOrdersPage() {
   const { role } = useAuth();
+  const { language, t } = useLanguage();
   const { orders, hasLoaded, setStatus } = useOrders();
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
@@ -80,21 +75,21 @@ export default function AdminOrdersPage() {
   const advance = async (o: Order, to: OrderStatus) => {
     setMessage('');
     const r = await setStatus(o.id, to);
-    if (!r.ok) setMessage(describeError(r.error));
+    if (!r.ok) setMessage(t(describeError(r.error)));
   };
 
   return (
     <AdminShell
       active="don-hang"
-      title="Đơn hàng"
-      description="Theo dõi từng đơn từ lúc đặt đến khi giao: chờ xử lý, đóng gói, giao cho vận chuyển, đã giao."
+      title={t('adm.orders.title')}
+      description={t('adm.orders.desc')}
     >
       {message && (
         <p role="alert" className="mb-4 p-3 rounded-xl text-xs font-medium" style={{ background: 'var(--accent-dim)', color: 'var(--danger)' }}>{message}</p>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Lọc theo trạng thái">
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t('adm.orders.filterAria')}>
           {FILTERS.map(f => (
             <button
               key={f.value}
@@ -102,7 +97,7 @@ export default function AdminOrdersPage() {
               aria-pressed={filter === f.value}
               className={`filter-pill px-3.5 py-1.5 text-xs font-semibold cursor-pointer${filter === f.value ? ' active' : ''}`}
             >
-              {f.label} <span className="opacity-60">({counts(f.value)})</span>
+              {t(f.label)} <span className="opacity-60">({counts(f.value)})</span>
             </button>
           ))}
         </div>
@@ -111,8 +106,8 @@ export default function AdminOrdersPage() {
           <input
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-            placeholder="Mã đơn, tên, email, SĐT…"
-            aria-label="Tìm đơn hàng"
+            placeholder={t('adm.orders.searchPh')}
+            aria-label={t('adm.orders.searchAria')}
             className="input-field w-full pl-9 pr-3 py-2 text-xs"
           />
         </div>
@@ -120,10 +115,10 @@ export default function AdminOrdersPage() {
 
       <div className="card-surface overflow-hidden">
         {!hasLoaded ? (
-          <p className="py-12 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>Đang tải đơn hàng…</p>
+          <p className="py-12 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>{t('adm.orders.loading')}</p>
         ) : rows.length === 0 ? (
           <p className="py-12 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>
-            {orders.length === 0 ? 'Chưa có đơn hàng nào.' : 'Không có đơn nào khớp bộ lọc.'}
+            {orders.length === 0 ? t('adm.orders.empty') : t('adm.orders.noMatch')}
           </p>
         ) : (
           <ul>
@@ -140,14 +135,14 @@ export default function AdminOrdersPage() {
                     <button
                       onClick={() => setOpenId(open ? null : o.id)}
                       aria-expanded={open}
-                      aria-label={`Chi tiết đơn ${o.code}`}
+                      aria-label={t('adm.orders.detailAria', { code: o.code })}
                       className="btn-ghost p-1.5 cursor-pointer"
                     >
                       <ChevronDown size={15} strokeWidth={2} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                     </button>
                     <div className="min-w-[8rem]">
                       <p className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{o.code}</p>
-                      <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{new Date(o.date).toLocaleString('vi-VN')}</p>
+                      <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{new Date(o.date).toLocaleString(language === 'en' ? 'en-US' : 'vi-VN')}</p>
                     </div>
                     <div className="flex-1 min-w-[10rem]">
                       <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{o.customerName}</p>
@@ -156,24 +151,24 @@ export default function AdminOrdersPage() {
                     <div className="text-right min-w-[7rem]">
                       <p className="text-xs font-bold" style={{ color: 'var(--accent)' }}>{money(o.total)}</p>
                       <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                        {PAYMENT_LABEL[o.paymentMethod]} · {o.status === 'cancelled' ? 'đã hủy' : o.paymentStatus === 'paid' ? 'đã thu' : 'chưa thu'}
+                        {t(paymentLabelKey(o.paymentMethod))} · {o.status === 'cancelled' ? t('adm.orders.cancelledLower') : o.paymentStatus === 'paid' ? t('adm.orders.collectedLower') : t('adm.orders.uncollectedLower')}
                       </p>
                     </div>
                     <span className="px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap" style={{ background: tone.bg, color: tone.fg }}>
-                      {STATUS_LABEL[o.status]}
+                      {t(`adm.status.${o.status}`)}
                     </span>
                     <div className="flex items-center gap-1.5 ml-auto">
                       {step && StepIcon && canStep && (
                         <button
                           onClick={() => advance(o, step.to)}
                           disabled={waitingPayment && step.to === 'confirmed'}
-                          title={waitingPayment && step.to === 'confirmed' ? 'Chờ nhận tiền chuyển khoản' : undefined}
+                          title={waitingPayment && step.to === 'confirmed' ? t('adm.orders.waitingTransfer') : undefined}
                           className="btn-primary px-3 py-1.5 text-[11px] font-semibold cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
                         >
-                          <StepIcon size={13} strokeWidth={2} /> {step.label}
+                          <StepIcon size={13} strokeWidth={2} /> {t(step.label)}
                         </button>
                       )}
-                      <Link href={`/admin/hoa-don/${o.id}`} className="btn-outline p-2 cursor-pointer" aria-label={`In phiếu đơn ${o.code}`} title="In phiếu">
+                      <Link href={`/admin/hoa-don/${o.id}`} className="btn-outline p-2 cursor-pointer" aria-label={t('adm.orders.printAria', { code: o.code })} title={t('adm.orders.printTitle')}>
                         <Printer size={14} strokeWidth={2} />
                       </Link>
                     </div>
@@ -182,7 +177,7 @@ export default function AdminOrdersPage() {
                   {open && (
                     <div className="px-4 pb-4 pl-14 grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
                       <div>
-                        <p className="font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Sản phẩm</p>
+                        <p className="font-bold mb-2" style={{ color: 'var(--text-primary)' }}>{t('adm.orders.products')}</p>
                         <ul className="space-y-1.5">
                           {o.items.map((i, idx) => (
                             <li key={`${i.productId}-${idx}`} className="flex justify-between gap-3">
@@ -192,30 +187,30 @@ export default function AdminOrdersPage() {
                           ))}
                           {o.discount > 0 && (
                             <li className="flex justify-between gap-3">
-                              <span style={{ color: 'var(--text-secondary)' }}>Giảm giá{o.couponCode ? ` (${o.couponCode})` : ''}</span>
+                              <span style={{ color: 'var(--text-secondary)' }}>{t('adm.orders.discount')}{o.couponCode ? ` (${o.couponCode})` : ''}</span>
                               <span style={{ color: '#16a34a' }}>-{money(o.discount)}</span>
                             </li>
                           )}
                           <li className="flex justify-between gap-3">
-                            <span style={{ color: 'var(--text-secondary)' }}>Phí vận chuyển</span>
+                            <span style={{ color: 'var(--text-secondary)' }}>{t('adm.orders.shippingFee')}</span>
                             <span style={{ color: 'var(--text-secondary)' }}>{money(o.shippingFee)}</span>
                           </li>
                         </ul>
                       </div>
                       <div className="space-y-1.5">
-                        <p className="font-bold mb-2" style={{ color: 'var(--text-primary)' }}>Giao hàng & thanh toán</p>
-                        <p style={{ color: 'var(--text-secondary)' }}><span style={{ color: 'var(--text-muted)' }}>Người nhận: </span>{o.customerName} · {o.phone}</p>
-                        <p style={{ color: 'var(--text-secondary)' }}><span style={{ color: 'var(--text-muted)' }}>Địa chỉ: </span>{o.address}, {o.sector}</p>
-                        <p style={{ color: 'var(--text-secondary)' }}><span style={{ color: 'var(--text-muted)' }}>Email: </span>{o.customerEmail || '—'}</p>
+                        <p className="font-bold mb-2" style={{ color: 'var(--text-primary)' }}>{t('adm.orders.shipPay')}</p>
+                        <p style={{ color: 'var(--text-secondary)' }}><span style={{ color: 'var(--text-muted)' }}>{t('adm.orders.recipient')}</span>{o.customerName} · {o.phone}</p>
+                        <p style={{ color: 'var(--text-secondary)' }}><span style={{ color: 'var(--text-muted)' }}>{t('adm.orders.address')}</span>{o.address}, {o.sector}</p>
+                        <p style={{ color: 'var(--text-secondary)' }}><span style={{ color: 'var(--text-muted)' }}>{t('adm.orders.email')}</span>{o.customerEmail || '—'}</p>
                         <p style={{ color: 'var(--text-secondary)' }}>
-                          <span style={{ color: 'var(--text-muted)' }}>Thanh toán: </span>
-                          {PAYMENT_LABEL[o.paymentMethod]} · {PAYMENT_STATUS_LABEL[o.paymentStatus]}
+                          <span style={{ color: 'var(--text-muted)' }}>{t('adm.orders.payment')}</span>
+                          {t(paymentLabelKey(o.paymentMethod))} · {t(paymentStatusKey(o.paymentStatus))}
                         </p>
                         {o.paymentStatus === 'refunded' && o.refundNote && (
-                          <p style={{ color: 'var(--text-secondary)' }}><span style={{ color: 'var(--text-muted)' }}>Ghi chú hoàn tiền: </span>{o.refundNote}</p>
+                          <p style={{ color: 'var(--text-secondary)' }}><span style={{ color: 'var(--text-muted)' }}>{t('adm.orders.refundNote')}</span>{o.refundNote}</p>
                         )}
                         {waitingPayment && (
-                          <p className="font-medium" style={{ color: 'var(--accent)' }}>Chờ nhận tiền chuyển khoản trước khi đóng gói.</p>
+                          <p className="font-medium" style={{ color: 'var(--accent)' }}>{t('adm.orders.waitingBeforePack')}</p>
                         )}
                       </div>
                     </div>

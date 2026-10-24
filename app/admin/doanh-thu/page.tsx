@@ -9,28 +9,30 @@ import Pagination, { paginate } from '../../../components/pagination';
 import { useOrders, Order } from '../../../hooks/use-orders';
 import { getSupabase } from '../../../lib/supabase';
 import { downloadCsv } from '../../../lib/csv';
-import { PAYMENT_LABEL, PAYMENT_STATUS_LABEL, PaymentMethodId } from '../../../lib/payments';
+import { paymentLabelKey, paymentStatusKey, PaymentMethodId } from '../../../lib/payments';
+import { useLanguage } from '../../../hooks/use-language';
+import type { DictionaryKey } from '../../i18n/dictionary';
 
 type Period = 7 | 30 | 90 | 'custom';
 type StatusFilter = 'all' | 'unpaid' | 'paid' | 'cancelled' | 'refund' | 'cod_due';
 
-const PERIODS: { value: Period; label: string }[] = [
-  { value: 7, label: '7 ngày' },
-  { value: 30, label: '30 ngày' },
-  { value: 90, label: '90 ngày' },
-  { value: 'custom', label: 'Tùy chọn' },
+const PERIODS: { value: Period; labelKey: DictionaryKey }[] = [
+  { value: 7, labelKey: 'adm.rev.period7' },
+  { value: 30, labelKey: 'adm.rev.period30' },
+  { value: 90, labelKey: 'adm.rev.period90' },
+  { value: 'custom', labelKey: 'adm.rev.periodCustom' },
 ];
 
-const STATUS_FILTERS: { value: StatusFilter; label: string; match: (o: Order) => boolean }[] = [
-  { value: 'all', label: 'Tất cả', match: () => true },
-  { value: 'unpaid', label: 'Chưa thu tiền', match: o => o.status !== 'cancelled' && o.paymentStatus === 'unpaid' },
-  { value: 'paid', label: 'Đã thu tiền', match: o => o.status !== 'cancelled' && o.paymentStatus === 'paid' },
+const STATUS_FILTERS: { value: StatusFilter; labelKey: DictionaryKey; match: (o: Order) => boolean }[] = [
+  { value: 'all', labelKey: 'adm.rev.filter.all', match: () => true },
+  { value: 'unpaid', labelKey: 'adm.rev.filter.unpaid', match: o => o.status !== 'cancelled' && o.paymentStatus === 'unpaid' },
+  { value: 'paid', labelKey: 'adm.rev.filter.paid', match: o => o.status !== 'cancelled' && o.paymentStatus === 'paid' },
   // COD that the courier has (or has delivered) but whose cash we have not confirmed yet.
-  { value: 'cod_due', label: 'COD chờ đối soát', match: o => o.paymentMethod === 'cod' && (o.status === 'shipping' || o.status === 'delivered') && o.paymentStatus === 'unpaid' },
-  { value: 'cancelled', label: 'Đã hủy', match: o => o.status === 'cancelled' },
+  { value: 'cod_due', labelKey: 'adm.rev.filter.codDue', match: o => o.paymentMethod === 'cod' && (o.status === 'shipping' || o.status === 'delivered') && o.paymentStatus === 'unpaid' },
+  { value: 'cancelled', labelKey: 'adm.rev.filter.cancelled', match: o => o.status === 'cancelled' },
   {
     value: 'refund',
-    label: 'Hoàn tiền',
+    labelKey: 'adm.rev.filter.refund',
     match: o => o.paymentStatus === 'refunded' || (o.status === 'cancelled' && o.paymentStatus === 'paid') || (o.cancelRequested && o.status !== 'cancelled'),
   },
 ];
@@ -43,12 +45,12 @@ const endOfDay = (d: Date) => { const x = new Date(d); x.setHours(23, 59, 59, 99
 const inputDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const parseInputDate = (v: string) => new Date(`${v}T00:00:00`);
 
-const STATUS_LABEL: Record<string, string> = { pending: 'Chờ xử lý', confirmed: 'Đã đóng gói', shipping: 'Đang giao', delivered: 'Đã giao', cancelled: 'Đã hủy' };
-
 // "Doanh thu" is the financial report: money collected vs still owed vs refunded,
 // where it comes from, and what sells. Day-to-day work lives on "Tổng quan".
 export default function AdminRevenuePage() {
   const { orders, setPaymentStatus, cancel } = useOrders();
+  const { t, language } = useLanguage();
+  const locale = language === 'en' ? 'en-US' : 'vi-VN';
   const [period, setPeriod] = useState<Period>(30);
   const [customFrom, setCustomFrom] = useState(() => inputDate(new Date(Date.now() - 29 * DAY)));
   const [customTo, setCustomTo] = useState(() => inputDate(new Date()));
@@ -71,7 +73,7 @@ export default function AdminRevenuePage() {
   const prevEnd = new Date(start.getTime() - 1);
   const prevStart = new Date(start.getTime() - rangeDays * DAY);
 
-  const within = (o: Order, from: Date, to: Date) => { const t = new Date(o.date).getTime(); return t >= from.getTime() && t <= to.getTime(); };
+  const within = (o: Order, from: Date, to: Date) => { const ms = new Date(o.date).getTime(); return ms >= from.getTime() && ms <= to.getTime(); };
   const inPeriod = orders.filter(o => within(o, start, end));
   const prevOrders = orders.filter(o => within(o, prevStart, prevEnd));
 
@@ -89,8 +91,8 @@ export default function AdminRevenuePage() {
 
   const delta = prevCollected > 0 ? ((collected - prevCollected) / prevCollected) * 100 : null;
   const deltaText = delta === null
-    ? (collected > 0 ? 'Kỳ trước chưa có doanh thu' : `${paidOrders.length} đơn đã thu tiền`)
-    : `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(0)}% so với kỳ trước`;
+    ? (collected > 0 ? t('adm.rev.noPrev') : t('adm.rev.paidOrders', { n: paidOrders.length }))
+    : t('adm.rev.vsPrev', { arrow: delta >= 0 ? '▲' : '▼', pct: Math.abs(delta).toFixed(0) });
 
   // Gross profit comes from the server (cost prices never reach the browser).
   const startMs = start.getTime();
@@ -143,12 +145,10 @@ export default function AdminRevenuePage() {
   const cancelRequests = orders.filter(o => o.cancelRequested && o.status !== 'cancelled').length;
 
   const handleCancel = async (id: string, code: string, paid: boolean) => {
-    const msg = paid
-      ? `Hủy đơn ${code}? Đơn đã thu tiền: sau khi hủy, bạn cần chuyển lại tiền cho khách rồi bấm "Đã hoàn tiền".`
-      : `Hủy đơn ${code}? Sản phẩm sẽ được trả lại kho.`;
+    const msg = paid ? t('adm.rev.confirmCancelPaid', { code }) : t('adm.rev.confirmCancel', { code });
     if (!window.confirm(msg)) return;
     const r = await cancel(id);
-    if (!r.ok) window.alert('Không thể hủy đơn này (có thể đã giao hàng). Vui lòng thử lại.');
+    if (!r.ok) window.alert(t('adm.rev.cancelFail'));
   };
 
   const openRefund = (o: Order) => { setRefundNote(''); setRefundError(''); setRefunding(o); };
@@ -156,34 +156,34 @@ export default function AdminRevenuePage() {
   const submitRefund = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!refunding) return;
-    if (refundNote.trim().length < 3) { setRefundError('Hãy ghi mã giao dịch hoặc tài khoản đã chuyển hoàn.'); return; }
+    if (refundNote.trim().length < 3) { setRefundError(t('adm.rev.refundNoteErr')); return; }
     setRefundBusy(true);
     const ok = await setPaymentStatus(refunding.id, 'refunded', refundNote);
     setRefundBusy(false);
-    if (!ok) { setRefundError('Không thể cập nhật. Vui lòng thử lại.'); return; }
+    if (!ok) { setRefundError(t('adm.rev.updateFail')); return; }
     setRefunding(null);
   };
 
   const exportCsv = () => {
     downloadCsv(`don-hang-${inputDate(start)}_${inputDate(end)}.csv`, [
-      ['Mã đơn', 'Ngày', 'Khách hàng', 'Email', 'Điện thoại', 'Số sản phẩm', 'Tạm tính', 'Giảm giá', 'Mã giảm giá', 'Phí vận chuyển', 'Tổng tiền', 'Thanh toán', 'Trạng thái thanh toán', 'Trạng thái đơn', 'Ghi chú hoàn tiền'],
+      (['code', 'date', 'customer', 'email', 'phone', 'itemCount', 'subtotal', 'discount', 'coupon', 'shipping', 'total', 'payment', 'paymentStatus', 'orderStatus', 'refundNote'] as const).map(c => t(`adm.rev.csv.${c}`)),
       ...rows.map(o => [
-        o.code, new Date(o.date).toLocaleString('vi-VN'), o.customerName, o.customerEmail, o.phone,
+        o.code, new Date(o.date).toLocaleString(locale), o.customerName, o.customerEmail, o.phone,
         o.items.reduce((acc, i) => acc + i.quantity, 0), o.subtotal, o.discount, o.couponCode ?? '', o.shippingFee, o.total,
-        PAYMENT_LABEL[o.paymentMethod], PAYMENT_STATUS_LABEL[o.paymentStatus], STATUS_LABEL[o.status] ?? o.status, o.refundNote ?? '',
+        t(paymentLabelKey(o.paymentMethod)), t(paymentStatusKey(o.paymentStatus)), t(`adm.status.${o.status}`), o.refundNote ?? '',
       ]),
     ]);
   };
 
-  const rangeLabel = `${start.toLocaleDateString('vi-VN')} – ${end.toLocaleDateString('vi-VN')}`;
+  const rangeLabel = `${start.toLocaleDateString(locale)} – ${end.toLocaleDateString(locale)}`;
 
   return (
     <AdminShell
       active="doanh-thu"
-      title="Doanh thu"
-      description="Báo cáo tài chính: tiền đã thu, còn chờ thu, đã hoàn lại và lợi nhuận. Đơn COD và chuyển khoản được xác nhận thủ công khi đã nhận tiền."
+      title={t('adm.rev.title')}
+      description={t('adm.rev.desc')}
       actions={
-        <div role="group" aria-label="Kỳ báo cáo" className="flex rounded-full p-0.5 flex-wrap" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+        <div role="group" aria-label={t('adm.rev.periodAria')} className="flex rounded-full p-0.5 flex-wrap" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
           {PERIODS.map(p => {
             const active = p.value === period;
             return (
@@ -194,7 +194,7 @@ export default function AdminRevenuePage() {
                 className="px-3.5 py-1.5 text-xs font-semibold rounded-full cursor-pointer transition-colors"
                 style={{ background: active ? 'var(--accent)' : 'transparent', color: active ? '#fff' : 'var(--text-secondary)' }}
               >
-                {p.label}
+                {t(p.labelKey)}
               </button>
             );
           })}
@@ -204,44 +204,44 @@ export default function AdminRevenuePage() {
       {period === 'custom' && (
         <div className="card-surface p-4 mb-4 flex flex-wrap items-end gap-3">
           <div>
-            <label htmlFor="r-from" className="block text-[11px] font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Từ ngày</label>
+            <label htmlFor="r-from" className="block text-[11px] font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>{t('adm.rev.from')}</label>
             <input id="r-from" type="date" value={customFrom} max={customTo || undefined} onChange={(e) => { setCustomFrom(e.target.value); setPage(1); }} className="input-field px-3 py-2 text-xs" />
           </div>
           <div>
-            <label htmlFor="r-to" className="block text-[11px] font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Đến ngày</label>
+            <label htmlFor="r-to" className="block text-[11px] font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>{t('adm.rev.to')}</label>
             <input id="r-to" type="date" value={customTo} min={customFrom || undefined} max={inputDate(new Date())} onChange={(e) => { setCustomTo(e.target.value); setPage(1); }} className="input-field px-3 py-2 text-xs" />
           </div>
-          {!validCustom && <p role="alert" className="text-xs font-medium" style={{ color: 'var(--danger)' }}>Chọn khoảng ngày hợp lệ (ngày bắt đầu không sau ngày kết thúc).</p>}
+          {!validCustom && <p role="alert" className="text-xs font-medium" style={{ color: 'var(--danger)' }}>{t('adm.rev.invalidRange')}</p>}
         </div>
       )}
-      <p className="text-[11px] mb-4" style={{ color: 'var(--text-muted)' }}>Kỳ báo cáo: {rangeLabel} ({rangeDays} ngày)</p>
+      <p className="text-[11px] mb-4" style={{ color: 'var(--text-muted)' }}>{t('adm.rev.range', { range: rangeLabel, days: rangeDays })}</p>
 
       {(awaitingRefund > 0 || cancelRequests > 0) && (
         <div role="status" className="mb-4 p-3 rounded-xl text-xs font-medium" style={{ background: 'var(--accent-dim)', color: 'var(--text-primary)' }}>
-          {cancelRequests > 0 && <span>{cancelRequests} đơn khách yêu cầu hủy và hoàn tiền. </span>}
-          {awaitingRefund > 0 && <span>{awaitingRefund} đơn đã hủy đang chờ hoàn tiền cho khách.</span>}
+          {cancelRequests > 0 && <span>{t('adm.rev.cancelRequests', { n: cancelRequests })}</span>}
+          {awaitingRefund > 0 && <span>{t('adm.rev.awaitingRefund', { n: awaitingRefund })}</span>}
         </div>
       )}
 
       {/* Money position for the period */}
       <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))' }}>
-        <AdminStat label="Đã thu" value={money(collected)} hint={deltaText} icon={<BadgeCheck size={20} strokeWidth={2} />} />
-        <AdminStat label="Còn chờ thu" value={money(receivable)} hint="COD chưa giao, chuyển khoản chưa về" icon={<Hourglass size={20} strokeWidth={2} />} tone={receivable > 0 ? 'danger' : 'default'} />
+        <AdminStat label={t('adm.rev.collected')} value={money(collected)} hint={deltaText} icon={<BadgeCheck size={20} strokeWidth={2} />} />
+        <AdminStat label={t('adm.rev.receivable')} value={money(receivable)} hint={t('adm.rev.receivableHint')} icon={<Hourglass size={20} strokeWidth={2} />} tone={receivable > 0 ? 'danger' : 'default'} />
         <AdminStat
-          label="Lợi nhuận gộp"
+          label={t('adm.rev.grossProfit')}
           value={grossProfit === null ? '—' : money(grossProfit)}
-          hint={profit === null ? 'Đang tính…' : profit.cogs === 0 ? 'Chưa nhập giá vốn sản phẩm' : `Giá vốn ${money(profit.cogs)}`}
+          hint={profit === null ? t('adm.rev.calculating') : profit.cogs === 0 ? t('adm.rev.noCost') : t('adm.rev.cogs', { v: money(profit.cogs) })}
           icon={<TrendingUp size={20} strokeWidth={2} />}
           tone={grossProfit !== null && grossProfit < 0 ? 'danger' : 'default'}
         />
         <AdminStat
-          label="Đã hoàn tiền"
+          label={t('adm.rev.refunded')}
           value={money(refunded)}
-          hint={toRefund > 0 ? `Còn ${money(toRefund)} chờ hoàn` : 'Không có khoản chờ hoàn'}
+          hint={toRefund > 0 ? t('adm.rev.pendingRefund', { v: money(toRefund) }) : t('adm.rev.noPendingRefund')}
           icon={<Undo2 size={20} strokeWidth={2} />}
           tone={toRefund > 0 ? 'danger' : 'default'}
         />
-        <AdminStat label="Giá trị đơn trung bình" value={money(avgOrder)} hint={`${live.length} đơn trong kỳ`} icon={<Receipt size={20} strokeWidth={2} />} />
+        <AdminStat label={t('adm.rev.avgOrder')} value={money(avgOrder)} hint={t('adm.rev.ordersInPeriod', { n: live.length })} icon={<Receipt size={20} strokeWidth={2} />} />
       </div>
 
       <div className="mb-6">
@@ -251,16 +251,16 @@ export default function AdminRevenuePage() {
       {/* Where the money comes from + what sells */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <div className="card-surface p-5">
-          <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)' }}>Theo phương thức thanh toán</h3>
+          <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)' }}>{t('adm.rev.byMethod')}</h3>
           {live.length === 0 ? (
-            <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>Chưa có đơn nào trong kỳ này.</p>
+            <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>{t('adm.rev.noOrdersPeriod')}</p>
           ) : (
             <ul className="space-y-4">
               {methods.map(m => (
                 <li key={m.id}>
                   <div className="flex items-baseline justify-between gap-2 mb-1.5">
                     <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                      {PAYMENT_LABEL[m.id]} <span className="font-normal" style={{ color: 'var(--text-muted)' }}>· {m.count} đơn</span>
+                      {t(paymentLabelKey(m.id))} <span className="font-normal" style={{ color: 'var(--text-muted)' }}>· {t('adm.rev.ordersCount', { n: m.count })}</span>
                     </span>
                     <span className="text-xs font-bold" style={{ color: 'var(--accent)' }}>{m.share.toFixed(0)}%</span>
                   </div>
@@ -268,7 +268,7 @@ export default function AdminRevenuePage() {
                     <div className="h-full rounded-full" style={{ width: `${m.share}%`, background: 'linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, transparent))' }} />
                   </div>
                   <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-secondary)' }}>
-                    Tổng {money(m.value)} · đã thu {money(m.paid)}
+                    {t('adm.rev.methodTotals', { total: money(m.value), paid: money(m.paid) })}
                   </p>
                 </li>
               ))}
@@ -277,9 +277,9 @@ export default function AdminRevenuePage() {
         </div>
 
         <div className="card-surface p-5">
-          <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)' }}>Sản phẩm bán chạy theo doanh thu</h3>
+          <h3 className="text-sm font-bold mb-4" style={{ color: 'var(--text-primary)' }}>{t('adm.rev.topProducts')}</h3>
           {topProducts.length === 0 ? (
-            <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>Chưa có đơn nào trong kỳ này.</p>
+            <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>{t('adm.rev.noOrdersPeriod')}</p>
           ) : (
             <ol className="space-y-3.5">
               {topProducts.map((p, idx) => (
@@ -293,7 +293,7 @@ export default function AdminRevenuePage() {
                     <div className="mt-1.5 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border-subtle)' }} aria-hidden="true">
                       <div className="h-full rounded-full" style={{ width: `${(p.revenue / topMax) * 100}%`, background: idx === 0 ? 'var(--accent)' : 'color-mix(in srgb, var(--accent) 50%, transparent)' }} />
                     </div>
-                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Đã bán {p.qty} cái</p>
+                    <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{t('adm.rev.sold', { n: p.qty })}</p>
                   </div>
                 </li>
               ))}
@@ -304,7 +304,7 @@ export default function AdminRevenuePage() {
 
       {/* Orders — filterable ledger */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Lọc đơn hàng">
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t('adm.rev.filterAria')}>
           {STATUS_FILTERS.map(f => (
             <button
               key={f.value}
@@ -312,7 +312,7 @@ export default function AdminRevenuePage() {
               aria-pressed={statusFilter === f.value}
               className={`filter-pill px-3.5 py-1.5 text-xs font-semibold cursor-pointer${statusFilter === f.value ? ' active' : ''}`}
             >
-              {f.label}
+              {t(f.labelKey)}
             </button>
           ))}
         </div>
@@ -322,13 +322,13 @@ export default function AdminRevenuePage() {
             <input
               value={query}
               onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-              placeholder="Tìm mã đơn, tên, email…"
-              aria-label="Tìm đơn hàng"
+              placeholder={t('adm.rev.searchPlaceholder')}
+              aria-label={t('adm.rev.searchAria')}
               className="input-field w-full pl-9 pr-3 py-2 text-xs"
             />
           </div>
           <button onClick={exportCsv} disabled={rows.length === 0} className="btn-outline px-3 py-2 text-xs font-semibold cursor-pointer flex items-center gap-1.5">
-            <Download size={13} strokeWidth={2} /> Xuất CSV
+            <Download size={13} strokeWidth={2} /> {t('adm.rev.exportCsv')}
           </button>
         </div>
       </div>
@@ -338,8 +338,8 @@ export default function AdminRevenuePage() {
           <table className="admin-table w-full text-xs">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                {['Mã đơn', 'Khách hàng', 'Email', 'Ngày', 'Số sản phẩm', 'Tổng tiền', 'Thanh toán', 'Thao tác'].map(h => (
-                  <th key={h} className="text-left py-3 px-4 font-semibold" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                {(['code', 'customer', 'email', 'date', 'items', 'total', 'payment', 'actions'] as const).map(h => (
+                  <th key={h} className="text-left py-3 px-4 font-semibold" style={{ color: 'var(--text-muted)' }}>{t(`adm.rev.col.${h}`)}</th>
                 ))}
               </tr>
             </thead>
@@ -347,7 +347,7 @@ export default function AdminRevenuePage() {
               {rows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-10 text-center" style={{ color: 'var(--text-secondary)' }}>
-                    {orders.length === 0 ? 'Chưa có đơn hàng nào.' : 'Không có đơn nào khớp bộ lọc trong kỳ này.'}
+                    {orders.length === 0 ? t('adm.rev.noOrdersAtAll') : t('adm.rev.noMatch')}
                   </td>
                 </tr>
               ) : (
@@ -357,24 +357,24 @@ export default function AdminRevenuePage() {
                     <td className="py-3 px-4" style={{ color: 'var(--text-secondary)' }}>{o.customerName}</td>
                     <td className="py-3 px-4" style={{ color: 'var(--text-secondary)' }}>{o.customerEmail}</td>
                     <td className="py-3 px-4 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
-                      {new Date(o.date).toLocaleString('vi-VN')}
+                      {new Date(o.date).toLocaleString(locale)}
                     </td>
                     <td className="py-3 px-4" style={{ color: 'var(--text-secondary)' }}>
                       {o.items.reduce((acc, i) => acc + i.quantity, 0)}
                     </td>
                     <td className="py-3 px-4 font-bold whitespace-nowrap" style={{ color: 'var(--accent)' }}>{money(o.total)}</td>
                     <td className="py-3 px-4 whitespace-nowrap">
-                      <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{PAYMENT_LABEL[o.paymentMethod]}</span>
+                      <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{t(paymentLabelKey(o.paymentMethod))}</span>
                       {o.status === 'cancelled' ? (
                         <>
-                          <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(220,38,38,0.12)', color: '#dc2626' }}>Đã hủy</span>
+                          <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(220,38,38,0.12)', color: '#dc2626' }}>{t('adm.rev.badgeCancelled')}</span>
                           {o.paymentStatus === 'paid' && (
-                            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}>Chờ hoàn tiền</span>
+                            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}>{t('adm.rev.badgeToRefund')}</span>
                           )}
                           {o.paymentStatus === 'refunded' && (
                             <>
-                              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(34,197,94,0.15)', color: '#16a34a' }}>Đã hoàn tiền</span>
-                              {o.refundNote && <p className="text-[10px] mt-1 max-w-[16rem] whitespace-normal" style={{ color: 'var(--text-muted)' }}>Ghi chú: {o.refundNote}</p>}
+                              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(34,197,94,0.15)', color: '#16a34a' }}>{t('adm.rev.badgeRefunded')}</span>
+                              {o.refundNote && <p className="text-[10px] mt-1 max-w-[16rem] whitespace-normal" style={{ color: 'var(--text-muted)' }}>{t('adm.rev.note', { note: o.refundNote })}</p>}
                             </>
                           )}
                         </>
@@ -387,10 +387,10 @@ export default function AdminRevenuePage() {
                               color: o.paymentStatus === 'paid' ? '#16a34a' : 'var(--accent)',
                             }}
                           >
-                            {PAYMENT_STATUS_LABEL[o.paymentStatus]}
+                            {t(paymentStatusKey(o.paymentStatus))}
                           </span>
                           {o.cancelRequested && (
-                            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(220,38,38,0.12)', color: '#dc2626' }}>Khách yêu cầu hủy</span>
+                            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(220,38,38,0.12)', color: '#dc2626' }}>{t('adm.rev.badgeCancelReq')}</span>
                           )}
                         </>
                       )}
@@ -400,12 +400,12 @@ export default function AdminRevenuePage() {
                         {o.status !== 'cancelled' && o.paymentStatus === 'unpaid' && (
                           <button
                             onClick={async () => {
-                              if (!window.confirm(`Xác nhận đã nhận ${money(o.total)} cho đơn ${o.code}?`)) return;
-                              if (!(await setPaymentStatus(o.id, 'paid'))) window.alert('Không thể cập nhật. Vui lòng thử lại.');
+                              if (!window.confirm(t('adm.rev.confirmReceived', { amount: money(o.total), code: o.code }))) return;
+                              if (!(await setPaymentStatus(o.id, 'paid'))) window.alert(t('adm.rev.updateFail'));
                             }}
                             className="btn-outline px-3 py-1 text-[10px] font-semibold cursor-pointer whitespace-nowrap"
                           >
-                            Đã nhận tiền
+                            {t('adm.rev.received')}
                           </button>
                         )}
                         {(o.status === 'pending' || o.status === 'confirmed') && (
@@ -414,7 +414,7 @@ export default function AdminRevenuePage() {
                             className="px-3 py-1 text-[10px] font-semibold rounded-full cursor-pointer whitespace-nowrap"
                             style={{ border: '1px solid var(--danger)', color: 'var(--danger)' }}
                           >
-                            Hủy đơn
+                            {t('adm.rev.cancelOrder')}
                           </button>
                         )}
                         {o.status === 'cancelled' && o.paymentStatus === 'paid' && (
@@ -422,7 +422,7 @@ export default function AdminRevenuePage() {
                             onClick={() => openRefund(o)}
                             className="btn-outline px-3 py-1 text-[10px] font-semibold cursor-pointer whitespace-nowrap"
                           >
-                            Đã hoàn tiền
+                            {t('adm.rev.markRefunded')}
                           </button>
                         )}
                       </div>
@@ -438,20 +438,19 @@ export default function AdminRevenuePage() {
 
       {refunding && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ background: 'rgba(20,22,26,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => !refundBusy && setRefunding(null)}>
-          <div className="card-surface w-full max-w-md p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Xác nhận hoàn tiền">
+          <div className="card-surface w-full max-w-md p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('adm.rev.refundDialog')}>
             <div className="flex items-center justify-between mb-1">
-              <h2 className="text-base font-bold font-display" style={{ color: 'var(--text-primary)' }}>Xác nhận đã hoàn tiền</h2>
-              <button onClick={() => setRefunding(null)} className="btn-ghost p-1.5 cursor-pointer" aria-label="Đóng"><X size={18} strokeWidth={2} /></button>
+              <h2 className="text-base font-bold font-display" style={{ color: 'var(--text-primary)' }}>{t('adm.rev.refundTitle')}</h2>
+              <button onClick={() => setRefunding(null)} className="btn-ghost p-1.5 cursor-pointer" aria-label={t('adm.rev.close')}><X size={18} strokeWidth={2} /></button>
             </div>
             <p className="text-xs mb-4 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Đơn {refunding.code} · {refunding.customerName} · hoàn <strong style={{ color: 'var(--text-primary)' }}>{money(refunding.total)}</strong>.
-              Chỉ bấm xác nhận sau khi bạn đã chuyển tiền cho khách.
+              {t('adm.rev.refundIntro', { code: refunding.code, name: refunding.customerName })}<strong style={{ color: 'var(--text-primary)' }}>{money(refunding.total)}</strong>{t('adm.rev.refundOutro')}
             </p>
             {refundError && <p role="alert" className="mb-3 p-3 rounded-xl text-xs font-medium" style={{ background: 'rgba(214,69,80,0.1)', color: 'var(--danger)' }}>{refundError}</p>}
             <form onSubmit={submitRefund} className="space-y-4">
               <div>
                 <label htmlFor="refund-note" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-                  Ghi chú hoàn tiền (mã giao dịch, tài khoản nhận…) *
+                  {t('adm.rev.refundNoteLabel')}
                 </label>
                 <textarea
                   id="refund-note"
@@ -461,13 +460,13 @@ export default function AdminRevenuePage() {
                   maxLength={300}
                   value={refundNote}
                   onChange={(e) => setRefundNote(e.target.value)}
-                  placeholder="VD: Chuyển MB Bank, STK 0123456789 (NGUYEN VAN A), mã GD FT26101912345"
+                  placeholder={t('adm.rev.refundNotePh')}
                   className="input-field w-full px-3 py-2.5 text-sm rounded-xl resize-none"
                 />
               </div>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setRefunding(null)} disabled={refundBusy} className="btn-outline flex-1 py-2.5 text-sm font-semibold cursor-pointer">Hủy</button>
-                <button type="submit" disabled={refundBusy} className="btn-primary flex-1 py-2.5 text-sm font-semibold cursor-pointer">{refundBusy ? 'Đang lưu…' : 'Xác nhận đã hoàn'}</button>
+                <button type="button" onClick={() => setRefunding(null)} disabled={refundBusy} className="btn-outline flex-1 py-2.5 text-sm font-semibold cursor-pointer">{t('common.cancel')}</button>
+                <button type="submit" disabled={refundBusy} className="btn-primary flex-1 py-2.5 text-sm font-semibold cursor-pointer">{refundBusy ? t('adm.rev.saving') : t('adm.rev.confirmRefunded')}</button>
               </div>
             </form>
           </div>

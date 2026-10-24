@@ -11,8 +11,16 @@
 // request and receives the gateway's confirmation callback (IPN/webhook) —
 // secrets that must never live in this browser app.
 
+import type { DictionaryKey } from '../app/i18n/dictionary';
+
 export type PaymentMethodId = 'cod' | 'bank_transfer' | 'momo' | 'zalopay' | 'vnpay' | 'card';
 export type PaymentStatus = 'unpaid' | 'paid' | 'refunded';
+
+// Dictionary keys for the labels (use with t()).
+export const paymentLabelKey = (id: PaymentMethodId) => `pay.method.${id}` as DictionaryKey;
+export const paymentFullKey = (id: PaymentMethodId) => `pay.full.${id}` as DictionaryKey;
+export const paymentDescKey = (id: PaymentMethodId) => `pay.desc.${id}` as DictionaryKey;
+export const paymentStatusKey = (s: PaymentStatus) => `pay.status.${s}` as DictionaryKey;
 
 /** The slice of the shop settings that describes the shop's bank account. */
 export interface BankInfo {
@@ -26,55 +34,27 @@ export const isBankConfigured = (b: BankInfo) => !!(b.bankBin && b.bankAccount &
 
 export interface PaymentMethod {
   id: PaymentMethodId;
-  label: string;
-  description: string;
+  labelKey: DictionaryKey;
+  descriptionKey: DictionaryKey;
   available: boolean;
 }
 
 export function getPaymentMethods(bank: BankInfo): PaymentMethod[] {
+  const entry = (id: PaymentMethodId, available: boolean): PaymentMethod => ({
+    id,
+    labelKey: paymentFullKey(id),
+    descriptionKey: paymentDescKey(id),
+    available,
+  });
   return [
-    {
-      id: 'cod',
-      label: 'Thanh toán khi nhận hàng (COD)',
-      description: 'Trả tiền mặt cho người giao hàng khi bạn nhận và kiểm tra hàng.',
-      available: true,
-    },
-    {
-      id: 'bank_transfer',
-      label: 'Chuyển khoản ngân hàng (QR)',
-      description: 'Quét mã VietQR bằng app ngân hàng, đơn được xác nhận khi shop nhận được tiền.',
-      available: isBankConfigured(bank),
-    },
-    { id: 'momo', label: 'Ví MoMo', description: 'Thanh toán nhanh bằng ví điện tử MoMo.', available: false },
-    { id: 'zalopay', label: 'ZaloPay', description: 'Thanh toán bằng ví ZaloPay.', available: false },
-    { id: 'vnpay', label: 'VNPay (ATM / QR / thẻ nội địa)', description: 'Thanh toán qua cổng VNPay.', available: false },
-    { id: 'card', label: 'Thẻ Visa / Mastercard', description: 'Thanh toán bằng thẻ quốc tế.', available: false },
+    entry('cod', true),
+    entry('bank_transfer', isBankConfigured(bank)),
+    entry('momo', false),
+    entry('zalopay', false),
+    entry('vnpay', false),
+    entry('card', false),
   ];
 }
-
-export const PAYMENT_LABEL: Record<PaymentMethodId, string> = {
-  cod: 'COD',
-  bank_transfer: 'Chuyển khoản',
-  momo: 'MoMo',
-  zalopay: 'ZaloPay',
-  vnpay: 'VNPay',
-  card: 'Thẻ',
-};
-
-export const PAYMENT_METHOD_FULL_LABEL: Record<PaymentMethodId, string> = {
-  cod: 'Thanh toán khi nhận hàng (COD)',
-  bank_transfer: 'Chuyển khoản ngân hàng (QR)',
-  momo: 'Ví MoMo',
-  zalopay: 'ZaloPay',
-  vnpay: 'VNPay',
-  card: 'Thẻ Visa / Mastercard',
-};
-
-export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
-  unpaid: 'Chưa thu tiền',
-  paid: 'Đã thu tiền',
-  refunded: 'Đã hoàn tiền',
-};
 
 // Image from the public VietQR service — encodes bank + account + amount + note.
 // (Only the amount and the order code are sent to that service.)

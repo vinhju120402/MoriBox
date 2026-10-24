@@ -34,6 +34,7 @@ export default function FlashSalePage() {
 
 
   const flashSaleProducts = products.filter(p => p.salePrice != null);
+  const firstEnd = flashSaleProducts.map(p => p.saleEndsAt).filter((v): v is string => !!v).sort()[0];
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-base)' }}>
@@ -73,6 +74,12 @@ export default function FlashSalePage() {
               ctaHref="/#catalog"
             />
           </div>
+
+          {firstEnd && (
+            <p className="text-xs font-semibold mb-4" style={{ color: 'var(--accent)' }}>
+              {t('flash.endsAt', { time: new Date(firstEnd).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) })}
+            </p>
+          )}
 
           <ProductListing
             products={flashSaleProducts}

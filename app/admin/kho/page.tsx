@@ -12,34 +12,42 @@ import ProductImage from '../../../components/product-image';
 import Pagination, { paginate } from '../../../components/pagination';
 import { useProductCatalog, refreshCatalog, CatalogResult } from '../../../hooks/use-product-catalog';
 import { useProductCosts } from '../../../hooks/use-product-costs';
+import { useLanguage } from '../../../hooks/use-language';
 import { getSupabase } from '../../../lib/supabase';
 import { downloadCsv, parseCsv } from '../../../lib/csv';
 import { Product, GradeCode, lowStockLevel, DEFAULT_LOW_STOCK } from '../../data/products';
+import type { DictionaryKey } from '../../i18n/dictionary';
+
+type TFn = (key: DictionaryKey, params?: Record<string, string | number>) => string;
 
 const GRADE_FILTERS: (GradeCode | 'ALL')[] = ['ALL', 'PG', 'MG', 'RG', 'HG', 'EG', 'SD', 'ACC'];
 const GRADES: GradeCode[] = ['PG', 'MG', 'RG', 'HG', 'EG', 'SD', 'ACC'];
 
 type Sort = 'name' | 'stock-asc' | 'stock-desc' | 'price-asc' | 'price-desc';
-const SORTS: { value: Sort; label: string }[] = [
-  { value: 'name', label: 'Tên A → Z' },
-  { value: 'stock-asc', label: 'Tồn kho thấp → cao' },
-  { value: 'stock-desc', label: 'Tồn kho cao → thấp' },
-  { value: 'price-asc', label: 'Giá thấp → cao' },
-  { value: 'price-desc', label: 'Giá cao → thấp' },
+const SORTS: { value: Sort; label: DictionaryKey }[] = [
+  { value: 'name', label: 'adm.stock.sort.name' },
+  { value: 'stock-asc', label: 'adm.stock.sort.stockAsc' },
+  { value: 'stock-desc', label: 'adm.stock.sort.stockDesc' },
+  { value: 'price-asc', label: 'adm.stock.sort.priceAsc' },
+  { value: 'price-desc', label: 'adm.stock.sort.priceDesc' },
 ];
 
-function stockStatus(p: Product) {
-  if (p.stock === 0) return { label: 'Hết hàng', color: 'var(--danger)' };
-  if (p.stock <= lowStockLevel(p)) return { label: 'Sắp hết', color: '#b45309' };
-  return { label: 'Còn hàng', color: '#16a34a' };
+const COLUMNS: DictionaryKey[] = [
+  'adm.stock.col.product', 'adm.stock.col.grade', 'adm.stock.col.price', 'adm.stock.col.cost', 'adm.stock.col.stock', 'adm.stock.col.status',
+];
+
+function stockStatus(p: Product): { label: DictionaryKey; color: string } {
+  if (p.stock === 0) return { label: 'adm.stock.status.out', color: 'var(--danger)' };
+  if (p.stock <= lowStockLevel(p)) return { label: 'adm.stock.status.low', color: '#b45309' };
+  return { label: 'adm.stock.status.in', color: '#16a34a' };
 }
 
-const REASON_LABEL: Record<string, string> = {
-  sale: 'Bán hàng',
-  cancel: 'Hủy đơn (hoàn kho)',
-  receive: 'Nhập hàng',
-  adjust: 'Điều chỉnh tay',
-  initial: 'Tồn kho ban đầu',
+const REASON_LABEL: Record<string, DictionaryKey> = {
+  sale: 'adm.stock.reason.sale',
+  cancel: 'adm.stock.reason.cancel',
+  receive: 'adm.stock.reason.receive',
+  adjust: 'adm.stock.reason.adjust',
+  initial: 'adm.stock.reason.initial',
 };
 
 interface Movement {
@@ -72,14 +80,14 @@ interface ImportRow {
 const CSV_HEADERS = ['id', 'name', 'grade', 'scale', 'series', 'price', 'sale_price', 'stock', 'low_stock_threshold', 'cost_price', 'is_new', 'is_best_seller'];
 const truthy = (v: string) => ['1', 'true', 'x', 'yes', 'co', 'có'].includes(v.trim().toLowerCase());
 
-function parseProductsCsv(text: string, existing: Set<string>): { rows: ImportRow[]; errors: string[] } {
+function parseProductsCsv(text: string, existing: Set<string>, t: TFn): { rows: ImportRow[]; errors: string[] } {
   const table = parseCsv(text);
   const errors: string[] = [];
-  if (table.length < 2) return { rows: [], errors: ['File không có dòng dữ liệu nào.'] };
+  if (table.length < 2) return { rows: [], errors: [t('adm.stock.csv.noRows')] };
   const head = table[0].map(h => h.trim().toLowerCase());
   const col = (name: string) => head.indexOf(name);
   for (const required of ['name', 'grade', 'price']) {
-    if (col(required) === -1) errors.push(`Thiếu cột "${required}".`);
+    if (col(required) === -1) errors.push(t('adm.stock.csv.missingCol', { col: required }));
   }
   if (errors.length) return { rows: [], errors };
 
@@ -101,14 +109,14 @@ function parseProductsCsv(text: string, existing: Set<string>): { rows: ImportRo
     const threshold = num('low_stock_threshold', DEFAULT_LOW_STOCK);
     const cost = num('cost_price', 0);
     const problems: string[] = [];
-    if (!name) problems.push('thiếu tên');
-    if (!GRADES.includes(grade)) problems.push(`grade "${get('grade')}" không hợp lệ`);
-    if (price === null || Number.isNaN(price)) problems.push('giá không hợp lệ');
-    if (salePrice !== null && Number.isNaN(salePrice)) problems.push('giá sale không hợp lệ');
-    if (stock === null || Number.isNaN(stock)) problems.push('tồn kho không hợp lệ');
-    if (threshold === null || Number.isNaN(threshold)) problems.push('ngưỡng sắp hết không hợp lệ');
-    if (cost === null || Number.isNaN(cost)) problems.push('giá vốn không hợp lệ');
-    if (problems.length) { errors.push(`Dòng ${line}: ${problems.join(', ')}.`); return; }
+    if (!name) problems.push(t('adm.stock.csv.noName'));
+    if (!GRADES.includes(grade)) problems.push(t('adm.stock.csv.badGrade', { v: get('grade') }));
+    if (price === null || Number.isNaN(price)) problems.push(t('adm.stock.csv.badPrice'));
+    if (salePrice !== null && Number.isNaN(salePrice)) problems.push(t('adm.stock.csv.badSale'));
+    if (stock === null || Number.isNaN(stock)) problems.push(t('adm.stock.csv.badStock'));
+    if (threshold === null || Number.isNaN(threshold)) problems.push(t('adm.stock.csv.badThreshold'));
+    if (cost === null || Number.isNaN(cost)) problems.push(t('adm.stock.csv.badCost'));
+    if (problems.length) { errors.push(t('adm.stock.csv.line', { line, problems: problems.join(', ') })); return; }
 
     const id = get('id') || `custom-${Date.now()}-${idx}`;
     rows.push({
@@ -123,6 +131,7 @@ function parseProductsCsv(text: string, existing: Set<string>): { rows: ImportRo
 const fieldCls = 'w-full px-3 py-2.5 text-sm rounded-xl input-field';
 
 export default function AdminInventoryPage() {
+  const { language, t } = useLanguage();
   const { products, addProduct, updateProduct, deleteProduct } = useProductCatalog();
   const { costs, setCost, setManyCosts } = useProductCosts();
   const [gradeFilter, setGradeFilter] = useState<GradeCode | 'ALL'>('ALL');
@@ -148,7 +157,7 @@ export default function AdminInventoryPage() {
   const [importPlan, setImportPlan] = useState<{ rows: ImportRow[]; errors: string[] } | null>(null);
   const [importBusy, setImportBusy] = useState(false);
 
-  const report = (r: CatalogResult) => setError(r.ok ? '' : `Không lưu được: ${r.error}`);
+  const report = (r: CatalogResult) => setError(r.ok ? '' : t('adm.stock.saveFail', { error: r.error ?? '' }));
 
   useEffect(() => {
     if (!historyFor) return;
@@ -172,8 +181,8 @@ export default function AdminInventoryPage() {
       switch (sort) {
         case 'stock-asc': return a.stock - b.stock;
         case 'stock-desc': return b.stock - a.stock;
-        case 'price-asc': return (a.salePrice ?? a.price) - (b.salePrice ?? b.price);
-        case 'price-desc': return (b.salePrice ?? b.price) - (a.salePrice ?? a.price);
+        case 'price-asc': return (a.storedSalePrice ?? a.price) - (b.storedSalePrice ?? b.price);
+        case 'price-desc': return (b.storedSalePrice ?? b.price) - (a.storedSalePrice ?? a.price);
         default: return a.name.localeCompare(b.name, 'vi');
       }
     });
@@ -196,7 +205,7 @@ export default function AdminInventoryPage() {
   };
 
   const handleDelete = async (product: Product) => {
-    if (window.confirm(`Xóa sản phẩm "${product.name}"? Hành động này không thể hoàn tác.`)) {
+    if (window.confirm(t('adm.stock.deleteConfirm', { name: product.name }))) {
       report(await deleteProduct(product.id));
     }
   };
@@ -204,7 +213,7 @@ export default function AdminInventoryPage() {
   const handleModalSave = async (product: Product, cost: number) => {
     const result = await (modalProduct ? updateProduct(product.id, product) : addProduct(product));
     report(result);
-    if (result.ok && !(await setCost(product.id, cost))) setError('Đã lưu sản phẩm nhưng chưa lưu được giá vốn.');
+    if (result.ok && !(await setCost(product.id, cost))) setError(t('adm.stock.costFail'));
     setModalProduct(undefined);
   };
 
@@ -213,14 +222,14 @@ export default function AdminInventoryPage() {
     e.preventDefault();
     if (!receiving) return;
     const qty = Number(receiveQty);
-    if (!Number.isInteger(qty) || qty < 1) { setReceiveError('Số lượng nhập phải là số nguyên từ 1 trở lên.'); return; }
+    if (!Number.isInteger(qty) || qty < 1) { setReceiveError(t('adm.stock.qtyError')); return; }
     setReceiveBusy(true);
     setReceiveError('');
     const { error: err } = await getSupabase().rpc('receive_stock', { p_product_id: receiving.id, p_qty: qty, p_note: receiveNote.trim() });
     setReceiveBusy(false);
-    if (err) { setReceiveError('Không nhập được hàng. Vui lòng thử lại.'); return; }
+    if (err) { setReceiveError(t('adm.stock.receiveFail')); return; }
     await refreshCatalog();
-    setNotice(`Đã nhập ${qty} × ${receiving.name} vào kho.`);
+    setNotice(t('adm.stock.received', { qty, name: receiving.name }));
     setReceiving(null); setReceiveQty(''); setReceiveNote('');
   };
 
@@ -229,7 +238,7 @@ export default function AdminInventoryPage() {
     downloadCsv(`kho-hang-${new Date().toISOString().slice(0, 10)}.csv`, [
       CSV_HEADERS,
       ...products.map(p => [
-        p.id, p.name, p.grade, p.scale, p.series, p.price, p.salePrice ?? '', p.stock, lowStockLevel(p),
+        p.id, p.name, p.grade, p.scale, p.series, p.price, p.storedSalePrice ?? '', p.stock, lowStockLevel(p),
         costs[p.id] ?? 0, p.isNew ? 1 : 0, p.isBestSeller ? 1 : 0,
       ]),
     ]);
@@ -240,7 +249,7 @@ export default function AdminInventoryPage() {
     e.target.value = '';
     if (!file) return;
     const text = await file.text();
-    setImportPlan(parseProductsCsv(text, new Set(products.map(p => p.id))));
+    setImportPlan(parseProductsCsv(text, new Set(products.map(p => p.id)), t));
   };
 
   const confirmImport = async () => {
@@ -255,32 +264,32 @@ export default function AdminInventoryPage() {
     const { error: err } = await supabase.from('products').upsert(payload, { onConflict: 'id' });
     if (err) {
       setImportBusy(false);
-      setError('Nhập CSV thất bại. Kiểm tra lại file hoặc quyền của bạn.');
+      setError(t('adm.stock.importFail'));
       setImportPlan(null);
       return;
     }
     await setManyCosts(importPlan.rows.map(r => ({ productId: r.id, cost: r.cost })));
     await refreshCatalog();
     setImportBusy(false);
-    setNotice(`Đã nhập ${importPlan.rows.length} sản phẩm từ file CSV.`);
+    setNotice(t('adm.stock.imported', { n: importPlan.rows.length }));
     setImportPlan(null);
   };
 
   return (
     <AdminShell
       active="kho"
-      title="Kho hàng"
-      description="Thêm, sửa, xóa sản phẩm, nhập hàng và theo dõi biến động tồn kho theo từng SKU."
+      title={t('adm.stock.title')}
+      description={t('adm.stock.desc')}
       actions={
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={exportCsv} className="btn-outline px-3 py-2.5 text-xs font-semibold cursor-pointer flex items-center gap-1.5">
-            <Download size={14} strokeWidth={2} /> Xuất CSV
+            <Download size={14} strokeWidth={2} /> {t('adm.stock.exportCsv')}
           </button>
           <button onClick={() => fileRef.current?.click()} className="btn-outline px-3 py-2.5 text-xs font-semibold cursor-pointer flex items-center gap-1.5">
-            <Upload size={14} strokeWidth={2} /> Nhập CSV
+            <Upload size={14} strokeWidth={2} /> {t('adm.stock.importCsv')}
           </button>
           <button onClick={() => setModalProduct(null)} className="btn-primary px-4 py-2.5 text-sm font-semibold cursor-pointer flex items-center gap-2">
-            <Plus size={15} strokeWidth={2} /> Thêm sản phẩm
+            <Plus size={15} strokeWidth={2} /> {t('adm.stock.add')}
           </button>
           <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onPickFile} className="hidden" />
         </div>
@@ -292,15 +301,15 @@ export default function AdminInventoryPage() {
       {notice && (
         <p role="status" className="mb-4 p-3 rounded-xl text-xs font-medium flex items-center justify-between gap-3" style={{ background: 'rgba(34,197,94,0.12)', color: '#16a34a' }}>
           {notice}
-          <button onClick={() => setNotice('')} aria-label="Đóng thông báo" className="cursor-pointer"><X size={14} strokeWidth={2} /></button>
+          <button onClick={() => setNotice('')} aria-label={t('adm.stock.closeNotice')} className="cursor-pointer"><X size={14} strokeWidth={2} /></button>
         </p>
       )}
 
       <div className="grid gap-4 mb-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))' }}>
-        <AdminStat label="Tổng số SKU" value={String(totalSku)} icon={<Boxes size={20} strokeWidth={2} />} />
-        <AdminStat label="Tổng số lượng tồn" value={totalUnits.toLocaleString('vi-VN')} icon={<PackageCheck size={20} strokeWidth={2} />} />
-        <AdminStat label="SKU sắp hết" value={String(lowStockCount)} hint="Theo ngưỡng của từng sản phẩm" icon={<TriangleAlert size={20} strokeWidth={2} />} tone={lowStockCount > 0 ? 'danger' : 'default'} />
-        <AdminStat label="SKU hết hàng" value={String(outOfStockCount)} icon={<PackageX size={20} strokeWidth={2} />} tone={outOfStockCount > 0 ? 'danger' : 'default'} />
+        <AdminStat label={t('adm.stock.stat.sku')} value={String(totalSku)} icon={<Boxes size={20} strokeWidth={2} />} />
+        <AdminStat label={t('adm.stock.stat.units')} value={totalUnits.toLocaleString('vi-VN')} icon={<PackageCheck size={20} strokeWidth={2} />} />
+        <AdminStat label={t('adm.stock.stat.low')} value={String(lowStockCount)} hint={t('adm.stock.stat.lowHint')} icon={<TriangleAlert size={20} strokeWidth={2} />} tone={lowStockCount > 0 ? 'danger' : 'default'} />
+        <AdminStat label={t('adm.stock.stat.out')} value={String(outOfStockCount)} icon={<PackageX size={20} strokeWidth={2} />} tone={outOfStockCount > 0 ? 'danger' : 'default'} />
       </div>
 
       {/* Filters */}
@@ -312,7 +321,7 @@ export default function AdminInventoryPage() {
               onClick={() => { setGradeFilter(g); setPage(1); }}
               className={`filter-pill px-3.5 py-1.5 text-xs font-semibold cursor-pointer${gradeFilter === g ? ' active' : ''}`}
             >
-              {g === 'ALL' ? 'Tất cả' : g}
+              {g === 'ALL' ? t('adm.stock.filterAll') : g}
             </button>
           ))}
         </div>
@@ -322,16 +331,16 @@ export default function AdminInventoryPage() {
             <input
               value={query}
               onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-              placeholder="Tìm tên, mã, series…"
-              aria-label="Tìm sản phẩm"
+              placeholder={t('adm.stock.searchPh')}
+              aria-label={t('adm.stock.searchAria')}
               className="input-field w-full pl-9 pr-3 py-2 text-xs"
             />
           </div>
           <label className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
             <ArrowUpDown size={13} strokeWidth={2} aria-hidden="true" />
-            <span className="sr-only">Sắp xếp</span>
-            <select value={sort} onChange={(e) => { setSort(e.target.value as Sort); setPage(1); }} className="input-field px-2.5 py-2 text-xs cursor-pointer" aria-label="Sắp xếp">
-              {SORTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            <span className="sr-only">{t('adm.stock.sort')}</span>
+            <select value={sort} onChange={(e) => { setSort(e.target.value as Sort); setPage(1); }} className="input-field px-2.5 py-2 text-xs cursor-pointer" aria-label={t('adm.stock.sort')}>
+              {SORTS.map(s => <option key={s.value} value={s.value}>{t(s.label)}</option>)}
             </select>
           </label>
         </div>
@@ -342,14 +351,15 @@ export default function AdminInventoryPage() {
           <table className="admin-table w-full text-xs">
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                {['Sản phẩm', 'Grade', 'Giá bán', 'Giá vốn', 'Tồn kho', 'Trạng thái', ''].map(h => (
-                  <th key={h} className="text-left py-3 px-4 font-semibold" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                {COLUMNS.map(h => (
+                  <th key={h} className="text-left py-3 px-4 font-semibold" style={{ color: 'var(--text-muted)' }}>{t(h)}</th>
                 ))}
+                <th className="text-left py-3 px-4 font-semibold" style={{ color: 'var(--text-muted)' }}></th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={7} className="py-10 text-center" style={{ color: 'var(--text-secondary)' }}>Không có sản phẩm nào khớp.</td></tr>
+                <tr><td colSpan={7} className="py-10 text-center" style={{ color: 'var(--text-secondary)' }}>{t('adm.stock.empty')}</td></tr>
               ) : rows.map(p => {
                 const status = stockStatus(p);
                 const currentDraft = draft[p.id];
@@ -377,6 +387,11 @@ export default function AdminInventoryPage() {
                           <span className="line-through ml-1.5" style={{ color: 'var(--text-muted)' }}>{p.price.toLocaleString('vi-VN')}đ</span>
                         </>
                       ) : `${p.price.toLocaleString('vi-VN')}đ`}
+                      {p.salePrice == null && p.storedSalePrice != null && (
+                        <span className="block text-[10px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                          {t(p.salePhase === 'upcoming' ? 'adm.stock.saleUpcoming' : 'adm.stock.saleEnded')}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
                       {costs[p.id] ? `${costs[p.id].toLocaleString('vi-VN')}đ` : <span style={{ color: 'var(--text-muted)' }}>—</span>}
@@ -389,34 +404,34 @@ export default function AdminInventoryPage() {
                           value={currentDraft ?? p.stock}
                           onChange={(e) => setDraft(prev => ({ ...prev, [p.id]: e.target.value }))}
                           className="input-field w-20 px-2 py-1.5 text-xs font-semibold"
-                          aria-label={`Tồn kho của ${p.name}`}
+                          aria-label={t('adm.stock.stockAria', { name: p.name })}
                         />
                         {isDirty && (
-                          <button onClick={() => handleSaveStock(p.id)} className="btn-tinted px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer">Lưu</button>
+                          <button onClick={() => handleSaveStock(p.id)} className="btn-tinted px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer">{t('adm.stock.save')}</button>
                         )}
                         {savedId === p.id && (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold" style={{ color: '#16a34a' }}>
-                            <Check size={12} strokeWidth={2.5} /> Đã lưu
+                            <Check size={12} strokeWidth={2.5} /> {t('adm.stock.saved')}
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Báo sắp hết khi ≤ {lowStockLevel(p)}</p>
+                      <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>{t('adm.stock.lowAt', { n: lowStockLevel(p) })}</p>
                     </td>
                     <td className="py-3 px-4">
-                      <span className="font-semibold whitespace-nowrap" style={{ color: status.color }}>{status.label}</span>
+                      <span className="font-semibold whitespace-nowrap" style={{ color: status.color }}>{t(status.label)}</span>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1">
-                        <button onClick={() => { setReceiveError(''); setReceiving(p); }} className="btn-ghost p-1.5 cursor-pointer" aria-label={`Nhập hàng ${p.name}`} title="Nhập hàng">
+                        <button onClick={() => { setReceiveError(''); setReceiving(p); }} className="btn-ghost p-1.5 cursor-pointer" aria-label={t('adm.stock.receiveAria', { name: p.name })} title={t('adm.stock.receiveTitle')}>
                           <PackagePlus size={15} strokeWidth={2} />
                         </button>
-                        <button onClick={() => { setMovements(null); setHistoryFor(p); }} className="btn-ghost p-1.5 cursor-pointer" aria-label={`Lịch sử tồn kho ${p.name}`} title="Lịch sử tồn kho">
+                        <button onClick={() => { setMovements(null); setHistoryFor(p); }} className="btn-ghost p-1.5 cursor-pointer" aria-label={t('adm.stock.historyAria', { name: p.name })} title={t('adm.stock.historyTitle')}>
                           <History size={15} strokeWidth={2} />
                         </button>
-                        <button onClick={() => setModalProduct(p)} className="btn-ghost p-1.5 cursor-pointer" aria-label={`Sửa ${p.name}`} title="Sửa">
+                        <button onClick={() => setModalProduct(p)} className="btn-ghost p-1.5 cursor-pointer" aria-label={t('adm.stock.editAria', { name: p.name })} title={t('adm.stock.edit')}>
                           <Pencil size={14} strokeWidth={2} />
                         </button>
-                        <button onClick={() => handleDelete(p)} className="trash-btn p-1.5 cursor-pointer" aria-label={`Xóa ${p.name}`} title="Xóa">
+                        <button onClick={() => handleDelete(p)} className="trash-btn p-1.5 cursor-pointer" aria-label={t('adm.stock.deleteAria', { name: p.name })} title={t('adm.stock.delete')}>
                           <Trash2 size={14} strokeWidth={2} />
                         </button>
                       </div>
@@ -442,25 +457,25 @@ export default function AdminInventoryPage() {
       {/* Receive goods */}
       {receiving && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ background: 'rgba(20,22,26,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => setReceiving(null)}>
-          <div className="card-surface w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Nhập hàng">
+          <div className="card-surface w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('adm.stock.receiveTitle')}>
             <div className="flex items-center justify-between mb-1">
-              <h2 className="text-base font-bold font-display" style={{ color: 'var(--text-primary)' }}>Nhập hàng vào kho</h2>
-              <button onClick={() => setReceiving(null)} className="btn-ghost p-1.5 cursor-pointer" aria-label="Đóng"><X size={18} strokeWidth={2} /></button>
+              <h2 className="text-base font-bold font-display" style={{ color: 'var(--text-primary)' }}>{t('adm.stock.receiveHeading')}</h2>
+              <button onClick={() => setReceiving(null)} className="btn-ghost p-1.5 cursor-pointer" aria-label={t('adm.stock.close')}><X size={18} strokeWidth={2} /></button>
             </div>
-            <p className="text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>{receiving.name} · hiện còn {receiving.stock}</p>
+            <p className="text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>{t('adm.stock.receiveCurrent', { name: receiving.name, n: receiving.stock })}</p>
             {receiveError && <p role="alert" className="mb-3 p-3 rounded-xl text-xs font-medium" style={{ background: 'rgba(214,69,80,0.1)', color: 'var(--danger)' }}>{receiveError}</p>}
             <form onSubmit={submitReceive} className="space-y-4">
               <div>
-                <label htmlFor="rc-qty" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Số lượng nhập *</label>
+                <label htmlFor="rc-qty" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.stock.receiveQty')}</label>
                 <input id="rc-qty" type="number" min={1} required autoFocus value={receiveQty} onChange={(e) => setReceiveQty(e.target.value)} className={fieldCls} />
               </div>
               <div>
-                <label htmlFor="rc-note" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Ghi chú (nhà cung cấp, số phiếu…)</label>
+                <label htmlFor="rc-note" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.stock.receiveNote')}</label>
                 <input id="rc-note" value={receiveNote} onChange={(e) => setReceiveNote(e.target.value)} className={fieldCls} maxLength={120} />
               </div>
               <div className="flex items-center gap-3 pt-1">
-                <button type="button" onClick={() => setReceiving(null)} className="btn-outline flex-1 py-2.5 text-sm font-semibold cursor-pointer">Hủy</button>
-                <button type="submit" disabled={receiveBusy} className="btn-primary flex-1 py-2.5 text-sm font-semibold cursor-pointer">{receiveBusy ? 'Đang lưu…' : 'Nhập kho'}</button>
+                <button type="button" onClick={() => setReceiving(null)} className="btn-outline flex-1 py-2.5 text-sm font-semibold cursor-pointer">{t('common.cancel')}</button>
+                <button type="submit" disabled={receiveBusy} className="btn-primary flex-1 py-2.5 text-sm font-semibold cursor-pointer">{receiveBusy ? t('adm.stock.saving') : t('adm.stock.receiveSubmit')}</button>
               </div>
             </form>
           </div>
@@ -470,16 +485,16 @@ export default function AdminInventoryPage() {
       {/* Stock history */}
       {historyFor && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ background: 'rgba(20,22,26,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => setHistoryFor(null)}>
-          <div className="card-surface w-full max-w-lg max-h-[85vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Lịch sử tồn kho">
+          <div className="card-surface w-full max-w-lg max-h-[85vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('adm.stock.historyTitle')}>
             <div className="flex items-center justify-between mb-1">
-              <h2 className="text-base font-bold font-display" style={{ color: 'var(--text-primary)' }}>Lịch sử tồn kho</h2>
-              <button onClick={() => setHistoryFor(null)} className="btn-ghost p-1.5 cursor-pointer" aria-label="Đóng"><X size={18} strokeWidth={2} /></button>
+              <h2 className="text-base font-bold font-display" style={{ color: 'var(--text-primary)' }}>{t('adm.stock.historyTitle')}</h2>
+              <button onClick={() => setHistoryFor(null)} className="btn-ghost p-1.5 cursor-pointer" aria-label={t('adm.stock.close')}><X size={18} strokeWidth={2} /></button>
             </div>
             <p className="text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>{historyFor.name}</p>
             {movements === null ? (
-              <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>Đang tải…</p>
+              <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>{t('common.loading')}</p>
             ) : movements.length === 0 ? (
-              <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>Chưa có biến động nào được ghi lại.</p>
+              <p className="text-xs py-6 text-center" style={{ color: 'var(--text-secondary)' }}>{t('adm.stock.historyEmpty')}</p>
             ) : (
               <ul>
                 {movements.map(m => (
@@ -488,12 +503,12 @@ export default function AdminInventoryPage() {
                       {m.delta > 0 ? `+${m.delta}` : m.delta}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{REASON_LABEL[m.reason] ?? m.reason}</p>
+                      <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{REASON_LABEL[m.reason] ? t(REASON_LABEL[m.reason]) : m.reason}</p>
                       <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
-                        {new Date(m.at).toLocaleString('vi-VN')}{m.note ? ` · ${m.note}` : ''}
+                        {new Date(m.at).toLocaleString(language === 'en' ? 'en-US' : 'vi-VN')}{m.note ? ` · ${m.note}` : ''}
                       </p>
                     </div>
-                    <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>còn {m.stock_after}</span>
+                    <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{t('adm.stock.remaining', { n: m.stock_after })}</span>
                   </li>
                 ))}
               </ul>
@@ -505,35 +520,35 @@ export default function AdminInventoryPage() {
       {/* CSV import preview */}
       {importPlan && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ background: 'rgba(20,22,26,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => !importBusy && setImportPlan(null)}>
-          <div className="card-surface w-full max-w-lg max-h-[85vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Nhập sản phẩm từ CSV">
-            <h2 className="text-base font-bold font-display mb-1" style={{ color: 'var(--text-primary)' }}>Nhập sản phẩm từ CSV</h2>
+          <div className="card-surface w-full max-w-lg max-h-[85vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('adm.stock.importTitle')}>
+            <h2 className="text-base font-bold font-display mb-1" style={{ color: 'var(--text-primary)' }}>{t('adm.stock.importTitle')}</h2>
             <p className="text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>
-              Cần các cột: <span className="font-hud">name, grade, price</span>. Cột <span className="font-hud">id</span> trùng sản phẩm đang có sẽ cập nhật sản phẩm đó, để trống sẽ tạo mới. Dùng nút “Xuất CSV” để lấy file mẫu.
+              {t('adm.stock.importHelp1')}<span className="font-hud">name, grade, price</span>{t('adm.stock.importHelp2')}<span className="font-hud">id</span>{t('adm.stock.importHelp3')}
             </p>
             <div className="flex gap-3 mb-4">
               <div className="flex-1 p-3 rounded-xl text-center" style={{ background: 'var(--bg-base)' }}>
                 <p className="text-lg font-bold font-display" style={{ color: '#16a34a' }}>{importPlan.rows.filter(r => r.isNew).length}</p>
-                <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>Sản phẩm mới</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{t('adm.stock.importNew')}</p>
               </div>
               <div className="flex-1 p-3 rounded-xl text-center" style={{ background: 'var(--bg-base)' }}>
                 <p className="text-lg font-bold font-display" style={{ color: 'var(--accent)' }}>{importPlan.rows.filter(r => !r.isNew).length}</p>
-                <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>Cập nhật</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{t('adm.stock.importUpdated')}</p>
               </div>
               <div className="flex-1 p-3 rounded-xl text-center" style={{ background: 'var(--bg-base)' }}>
                 <p className="text-lg font-bold font-display" style={{ color: importPlan.errors.length ? 'var(--danger)' : 'var(--text-muted)' }}>{importPlan.errors.length}</p>
-                <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>Dòng lỗi</p>
+                <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{t('adm.stock.importErrors')}</p>
               </div>
             </div>
             {importPlan.errors.length > 0 && (
               <ul className="mb-4 p-3 rounded-xl text-[11px] space-y-1 max-h-40 overflow-y-auto" style={{ background: 'rgba(214,69,80,0.08)', color: 'var(--danger)' }}>
                 {importPlan.errors.slice(0, 20).map(er => <li key={er}>{er}</li>)}
-                {importPlan.errors.length > 20 && <li>… và {importPlan.errors.length - 20} lỗi khác</li>}
+                {importPlan.errors.length > 20 && <li>{t('adm.stock.importMore', { n: importPlan.errors.length - 20 })}</li>}
               </ul>
             )}
             <div className="flex items-center gap-3">
-              <button onClick={() => setImportPlan(null)} disabled={importBusy} className="btn-outline flex-1 py-2.5 text-sm font-semibold cursor-pointer">Hủy</button>
+              <button onClick={() => setImportPlan(null)} disabled={importBusy} className="btn-outline flex-1 py-2.5 text-sm font-semibold cursor-pointer">{t('common.cancel')}</button>
               <button onClick={confirmImport} disabled={importBusy || importPlan.rows.length === 0} className="btn-primary flex-1 py-2.5 text-sm font-semibold cursor-pointer">
-                {importBusy ? 'Đang nhập…' : `Nhập ${importPlan.rows.length} dòng hợp lệ`}
+                {importBusy ? t('adm.stock.importBusy') : t('adm.stock.importConfirm', { n: importPlan.rows.length })}
               </button>
             </div>
           </div>

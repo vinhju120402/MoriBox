@@ -5,6 +5,7 @@ import { getSupabase } from '../lib/supabase';
 import { useAuth } from './use-auth';
 import { refreshCatalog } from './use-product-catalog';
 import { PaymentMethodId, PaymentStatus } from '../lib/payments';
+import type { DictionaryKey } from '../app/i18n/dictionary';
 
 export interface OrderItem {
   productId: string;
@@ -225,21 +226,22 @@ export async function previewCoupon(code: string, items: { productId: string; qu
   return { ok: true, subtotal: data.subtotal, discount: data.discount };
 }
 
-// Turns a database error from the order/coupon functions into a sentence for the user.
-export function describeOrderError(raw: string): string {
-  if (raw.startsWith('insufficient_stock')) return `Sản phẩm "${raw.split(': ')[1] ?? ''}" không đủ hàng. Vui lòng giảm số lượng.`;
-  if (raw.startsWith('product_not_found')) return 'Có sản phẩm trong giỏ không còn được bán. Vui lòng xóa khỏi giỏ.';
-  if (raw.includes('not_authenticated')) return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
-  if (raw.includes('account_disabled')) return 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ cửa hàng.';
-  if (raw.includes('invalid_payment_method')) return 'Phương thức thanh toán này chưa khả dụng. Vui lòng chọn phương thức khác.';
-  if (raw.includes('missing_shipping_info')) return 'Vui lòng nhập đầy đủ thông tin giao hàng.';
-  if (raw.includes('coupon_invalid')) return 'Mã giảm giá không hợp lệ.';
-  if (raw.includes('coupon_not_started')) return 'Mã giảm giá chưa đến thời gian áp dụng.';
-  if (raw.includes('coupon_expired')) return 'Mã giảm giá đã hết hạn.';
-  if (raw.includes('coupon_exhausted')) return 'Mã giảm giá đã hết lượt sử dụng.';
+// Turns a database error from the order/coupon functions into a dictionary key (+ params) for t().
+export function describeOrderError(raw: string): { key: DictionaryKey; params?: Record<string, string | number> } {
+  if (raw.startsWith('insufficient_stock')) return { key: 'cart.err.stock', params: { name: raw.split(': ')[1] ?? '' } };
+  if (raw.startsWith('product_not_found')) return { key: 'cart.err.notFound' };
+  if (raw.includes('not_authenticated')) return { key: 'cart.err.auth' };
+  if (raw.includes('account_disabled')) return { key: 'cart.err.disabled' };
+  if (raw.includes('invalid_payment_method')) return { key: 'cart.err.payment' };
+  if (raw.includes('missing_shipping_info')) return { key: 'cart.err.shipping' };
+  if (raw.includes('coupon_invalid')) return { key: 'cart.err.couponInvalid' };
+  if (raw.includes('coupon_not_started')) return { key: 'cart.err.couponNotStarted' };
+  if (raw.includes('coupon_expired')) return { key: 'cart.err.couponExpired' };
+  if (raw.includes('coupon_exhausted')) return { key: 'cart.err.couponExhausted' };
   if (raw.startsWith('coupon_min_order')) {
     const min = Number(raw.split(': ')[1]);
-    return `Đơn hàng cần tối thiểu ${Number.isFinite(min) ? min.toLocaleString('vi-VN') + 'đ' : 'giá trị yêu cầu'} để dùng mã này.`;
+    if (!Number.isFinite(min)) return { key: 'cart.err.couponMinAny' };
+    return { key: 'cart.err.couponMin', params: { min: min.toLocaleString('vi-VN') + 'đ' } };
   }
-  return 'Không thể hoàn tất lúc này. Vui lòng thử lại.';
+  return { key: 'cart.err.generic' };
 }

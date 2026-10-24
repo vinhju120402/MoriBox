@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { X, Upload, Camera, ImageOff } from 'lucide-react';
 import { Product, GradeCode, DEFAULT_LOW_STOCK } from '../app/data/products';
+import { useLanguage } from '../hooks/use-language';
 
 const GRADE_OPTIONS: GradeCode[] = ['PG', 'MG', 'RG', 'HG', 'EG', 'SD', 'ACC'];
 const MAX_IMAGES = 5;
@@ -22,6 +23,8 @@ type FormState = {
   series: string;
   price: string;
   salePrice: string;
+  saleStartsAt: string;
+  saleEndsAt: string;
   costPrice: string;
   stock: string;
   lowStockThreshold: string;
@@ -35,10 +38,18 @@ type FormState = {
   description: string;
 };
 
+// <input type="datetime-local"> wants local time without a zone.
+function toLocalInput(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function toFormState(product: Product | null, cost?: number): FormState {
   if (!product) {
     return {
-      name: '', grade: 'HG', scale: '', series: '', price: '', salePrice: '', costPrice: '',
+      name: '', grade: 'HG', scale: '', series: '', price: '', salePrice: '', saleStartsAt: '', saleEndsAt: '', costPrice: '',
       stock: '10', lowStockThreshold: String(DEFAULT_LOW_STOCK), images: [], isNew: true, isBestSeller: false,
       height: '', partsCount: '', difficulty: 'Beginner', weaponList: '', description: '',
     };
@@ -49,7 +60,9 @@ function toFormState(product: Product | null, cost?: number): FormState {
     scale: product.scale,
     series: product.series,
     price: String(product.price),
-    salePrice: product.salePrice != null ? String(product.salePrice) : '',
+    salePrice: product.storedSalePrice != null ? String(product.storedSalePrice) : '',
+    saleStartsAt: toLocalInput(product.saleStartsAt),
+    saleEndsAt: toLocalInput(product.saleEndsAt),
     costPrice: cost ? String(cost) : '',
     stock: String(product.stock),
     lowStockThreshold: String(product.lowStockThreshold ?? DEFAULT_LOW_STOCK),
@@ -67,6 +80,7 @@ function toFormState(product: Product | null, cost?: number): FormState {
 const fieldCls = 'w-full px-3 py-2.5 text-sm rounded-xl input-field';
 
 export default function AdminProductModal({ product, cost, onClose, onSave }: AdminProductModalProps) {
+  const { t } = useLanguage();
   const [form, setForm] = useState<FormState>(() => toFormState(product, cost));
   const [error, setError] = useState('');
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -98,7 +112,7 @@ export default function AdminProductModal({ product, cost, onClose, onSave }: Ad
     e.preventDefault();
     setError('');
     if (!form.name.trim() || !form.price || !form.stock) {
-      setError('Vui lòng nhập đầy đủ tên, giá bán và tồn kho.');
+      setError(t('adm.product.required'));
       return;
     }
 
@@ -113,6 +127,8 @@ export default function AdminProductModal({ product, cost, onClose, onSave }: Ad
       series: form.series.trim() || 'MoriBox',
       price: Number(form.price),
       salePrice: form.salePrice ? Number(form.salePrice) : undefined,
+      saleStartsAt: form.salePrice && form.saleStartsAt ? new Date(form.saleStartsAt).toISOString() : undefined,
+      saleEndsAt: form.salePrice && form.saleEndsAt ? new Date(form.saleEndsAt).toISOString() : undefined,
       image: form.images[0] ?? '',
       images: form.images.length > 1 ? form.images.slice(1) : undefined,
       stock: Math.max(0, Math.floor(Number(form.stock))),
@@ -143,9 +159,9 @@ export default function AdminProductModal({ product, cost, onClose, onSave }: Ad
       >
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-base font-bold font-display" style={{ color: 'var(--text-primary)' }}>
-            {product ? 'Sửa sản phẩm' : 'Thêm sản phẩm'}
+            {product ? t('adm.product.edit') : t('adm.product.add')}
           </h2>
-          <button onClick={onClose} className="btn-ghost p-1.5 cursor-pointer" aria-label="Đóng">
+          <button onClick={onClose} className="btn-ghost p-1.5 cursor-pointer" aria-label={t('adm.product.close')}>
             <X size={18} strokeWidth={2} />
           </button>
         </div>
@@ -160,7 +176,7 @@ export default function AdminProductModal({ product, cost, onClose, onSave }: Ad
           {/* Images */}
           <div>
             <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-              Hình ảnh sản phẩm ({form.images.length}/{MAX_IMAGES})
+              {t('adm.product.images', { n: form.images.length, max: MAX_IMAGES })}
             </label>
             <div className="flex flex-wrap items-center gap-2.5 mb-3">
               {form.images.length === 0 && (
@@ -178,20 +194,20 @@ export default function AdminProductModal({ product, cost, onClose, onSave }: Ad
                   style={{ border: i === 0 ? '2px solid var(--accent)' : '1px solid var(--border-subtle)' }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt={`Ảnh ${i + 1}`} className="absolute inset-0 w-full h-full object-cover" />
+                  <img src={src} alt={t('adm.product.imageAlt', { n: i + 1 })} className="absolute inset-0 w-full h-full object-cover" />
                   {i === 0 && (
                     <span
                       className="absolute bottom-0 left-0 right-0 text-center text-[9px] font-bold py-0.5"
                       style={{ background: 'rgba(20,22,26,0.65)', color: '#fff' }}
                     >
-                      Ảnh bìa
+                      {t('adm.product.cover')}
                     </span>
                   )}
                   <button
                     type="button"
                     onClick={() => removeImage(i)}
-                    aria-label={`Xóa ảnh ${i + 1}`}
-                    title="Xóa ảnh"
+                    aria-label={t('adm.product.removeAria', { n: i + 1 })}
+                    title={t('adm.product.remove')}
                     className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center cursor-pointer"
                     style={{ background: 'rgba(20,22,26,0.7)', color: '#fff' }}
                   >
@@ -207,7 +223,7 @@ export default function AdminProductModal({ product, cost, onClose, onSave }: Ad
                 disabled={form.images.length >= MAX_IMAGES}
                 className="btn-outline px-3 py-2 text-xs font-semibold cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Upload size={13} strokeWidth={2} /> Tải ảnh lên
+                <Upload size={13} strokeWidth={2} /> {t('adm.product.upload')}
               </button>
               <button
                 type="button"
@@ -215,7 +231,7 @@ export default function AdminProductModal({ product, cost, onClose, onSave }: Ad
                 disabled={form.images.length >= MAX_IMAGES}
                 className="btn-outline px-3 py-2 text-xs font-semibold cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Camera size={13} strokeWidth={2} /> Chụp ảnh
+                <Camera size={13} strokeWidth={2} /> {t('adm.product.camera')}
               </button>
             </div>
             <input ref={uploadInputRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
@@ -225,8 +241,8 @@ export default function AdminProductModal({ product, cost, onClose, onSave }: Ad
           {/* Name + Grade */}
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
-              <label htmlFor="p-name" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Tên sản phẩm *</label>
-              <input id="p-name" required value={form.name} onChange={(e) => set('name', e.target.value)} className={fieldCls} placeholder="VD: RX-78-2 Gundam" />
+              <label htmlFor="p-name" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.name')}</label>
+              <input id="p-name" required value={form.name} onChange={(e) => set('name', e.target.value)} className={fieldCls} placeholder={t('adm.product.namePh')} />
             </div>
             <div>
               <label htmlFor="p-grade" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Grade</label>
@@ -235,7 +251,7 @@ export default function AdminProductModal({ product, cost, onClose, onSave }: Ad
               </select>
             </div>
             <div>
-              <label htmlFor="p-scale" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Tỷ lệ</label>
+              <label htmlFor="p-scale" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.scale')}</label>
               <input id="p-scale" value={form.scale} onChange={(e) => set('scale', e.target.value)} className={fieldCls} placeholder="1/144" />
             </div>
           </div>
@@ -248,27 +264,41 @@ export default function AdminProductModal({ product, cost, onClose, onSave }: Ad
           {/* Price + Sale + Stock */}
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label htmlFor="p-price" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Giá bán *</label>
+              <label htmlFor="p-price" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.price')}</label>
               <input id="p-price" required type="number" min={0} value={form.price} onChange={(e) => set('price', e.target.value)} className={fieldCls} />
             </div>
             <div>
-              <label htmlFor="p-sale" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Giá sale</label>
-              <input id="p-sale" type="number" min={0} value={form.salePrice} onChange={(e) => set('salePrice', e.target.value)} className={fieldCls} placeholder="Bỏ trống nếu không sale" />
+              <label htmlFor="p-sale" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.sale')}</label>
+              <input id="p-sale" type="number" min={0} value={form.salePrice} onChange={(e) => set('salePrice', e.target.value)} className={fieldCls} placeholder={t('adm.product.salePh')} />
             </div>
             <div>
-              <label htmlFor="p-stock" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Tồn kho *</label>
+              <label htmlFor="p-stock" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.stock')}</label>
               <input id="p-stock" required type="number" min={0} value={form.stock} onChange={(e) => set('stock', e.target.value)} className={fieldCls} />
             </div>
           </div>
 
+          {form.salePrice && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="p-sale-from" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.saleFrom')}</label>
+                <input id="p-sale-from" type="datetime-local" value={form.saleStartsAt} onChange={(e) => set('saleStartsAt', e.target.value)} className={fieldCls} />
+              </div>
+              <div>
+                <label htmlFor="p-sale-to" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.saleTo')}</label>
+                <input id="p-sale-to" type="datetime-local" value={form.saleEndsAt} onChange={(e) => set('saleEndsAt', e.target.value)} className={fieldCls} />
+              </div>
+              <p className="col-span-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>{t('adm.product.saleHint')}</p>
+            </div>
+          )}
+
           {/* Cost + low-stock alert */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="p-cost" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Giá vốn (chỉ nhân viên thấy)</label>
-              <input id="p-cost" type="number" min={0} value={form.costPrice} onChange={(e) => set('costPrice', e.target.value)} className={fieldCls} placeholder="Để tính lợi nhuận" />
+              <label htmlFor="p-cost" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.cost')}</label>
+              <input id="p-cost" type="number" min={0} value={form.costPrice} onChange={(e) => set('costPrice', e.target.value)} className={fieldCls} placeholder={t('adm.product.costPh')} />
             </div>
             <div>
-              <label htmlFor="p-low" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Báo “sắp hết” khi còn ≤</label>
+              <label htmlFor="p-low" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.low')}</label>
               <input id="p-low" type="number" min={0} value={form.lowStockThreshold} onChange={(e) => set('lowStockThreshold', e.target.value)} className={fieldCls} />
             </div>
           </div>
@@ -276,26 +306,26 @@ export default function AdminProductModal({ product, cost, onClose, onSave }: Ad
           {/* Specs */}
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label htmlFor="p-height" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Chiều cao</label>
+              <label htmlFor="p-height" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.height')}</label>
               <input id="p-height" value={form.height} onChange={(e) => set('height', e.target.value)} className={fieldCls} placeholder="13 cm" />
             </div>
             <div>
-              <label htmlFor="p-parts" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Số mảnh</label>
+              <label htmlFor="p-parts" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.parts')}</label>
               <input id="p-parts" type="number" min={0} value={form.partsCount} onChange={(e) => set('partsCount', e.target.value)} className={fieldCls} />
             </div>
             <div>
-              <label htmlFor="p-diff" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Độ khó</label>
+              <label htmlFor="p-diff" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.difficulty')}</label>
               <input id="p-diff" value={form.difficulty} onChange={(e) => set('difficulty', e.target.value)} className={fieldCls} placeholder="Beginner" />
             </div>
           </div>
 
           <div>
-            <label htmlFor="p-weapons" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Phụ kiện đi kèm (cách nhau bởi dấu phẩy)</label>
+            <label htmlFor="p-weapons" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.weapons')}</label>
             <input id="p-weapons" value={form.weaponList} onChange={(e) => set('weaponList', e.target.value)} className={fieldCls} placeholder="Beam Rifle, Beam Saber, Shield" />
           </div>
 
           <div>
-            <label htmlFor="p-desc" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>Mô tả</label>
+            <label htmlFor="p-desc" className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.product.desc')}</label>
             <textarea id="p-desc" rows={3} value={form.description} onChange={(e) => set('description', e.target.value)} className={fieldCls + ' resize-none'} />
           </div>
 
@@ -303,20 +333,20 @@ export default function AdminProductModal({ product, cost, onClose, onSave }: Ad
           <div className="flex items-center gap-5">
             <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer" style={{ color: 'var(--text-primary)' }}>
               <input type="checkbox" checked={form.isNew} onChange={(e) => set('isNew', e.target.checked)} className="cursor-pointer" />
-              Đánh dấu Mới
+              {t('adm.product.flagNew')}
             </label>
             <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer" style={{ color: 'var(--text-primary)' }}>
               <input type="checkbox" checked={form.isBestSeller} onChange={(e) => set('isBestSeller', e.target.checked)} className="cursor-pointer" />
-              Đánh dấu Bán chạy
+              {t('adm.product.flagBest')}
             </label>
           </div>
 
           <div className="flex items-center gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-outline flex-1 py-2.5 text-sm font-semibold cursor-pointer">
-              Hủy
+              {t('common.cancel')}
             </button>
             <button type="submit" className="btn-primary flex-1 py-2.5 text-sm font-semibold cursor-pointer">
-              Lưu sản phẩm
+              {t('adm.product.submit')}
             </button>
           </div>
         </form>

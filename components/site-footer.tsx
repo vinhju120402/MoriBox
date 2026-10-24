@@ -7,8 +7,13 @@ export default function SiteFooter() {
   const { t } = useLanguage();
 
   const links = [
+    { href: '/thong-tin/gioi-thieu', label: t('footer.about') },
+    { href: '/thong-tin/lien-he', label: t('footer.contact') },
+    { href: '/thong-tin/faq', label: t('footer.faq') },
+    { href: '/thong-tin/doi-tra', label: t('footer.returns') },
+    { href: '/thong-tin/giao-hang', label: t('footer.shipping') },
+    { href: '/thong-tin/quyen-rieng-tu', label: t('footer.privacy') },
     { href: '/dieu-khoan', label: t('footer.terms') },
-    { href: '/cai-dat#security', label: t('footer.security') },
     { href: '/cai-dat', label: t('footer.settings') },
   ];
 
@@ -24,7 +29,7 @@ export default function SiteFooter() {
           </div>
 
           {/* Links */}
-          <div className="flex justify-center gap-6">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
             {links.map(l => (
               <Link key={l.href} href={l.href} className="link-fade text-xs font-medium">
                 {l.label}

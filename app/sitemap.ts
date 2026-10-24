@@ -45,6 +45,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'weekly',
       priority: 0.8,
     },
+    ...['gioi-thieu', 'lien-he', 'faq', 'doi-tra', 'giao-hang', 'quyen-rieng-tu'].map((slug) => ({
+      url: `${SITE_URL}/thong-tin/${slug}`,
+      lastModified: now,
+      changeFrequency: 'monthly' as const,
+      priority: 0.4,
+    })),
     ...gradeUrls,
     ...productUrls,
   ];

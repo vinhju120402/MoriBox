@@ -3,20 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { ChevronRight } from 'lucide-react';
+import { useBanners, type Banner } from '../hooks/use-banners';
 
-interface Slide {
-  id: string;
-  eyebrow: string;
-  headline: string;
-  body: string;
-  ctaLabel: string;
-  ctaHref: string;
-  image: string;
-  imageAlt: string;
-  gradient: string;
-}
-
-const SLIDES: Slide[] = [
+// Built-in slides, used until the shop publishes its own banners.
+const DEFAULT_SLIDES: Banner[] = [
   {
     id: 'new-arrivals',
     eyebrow: 'Mới về',
@@ -25,7 +15,6 @@ const SLIDES: Slide[] = [
     ctaLabel: 'Xem ngay',
     ctaHref: '#catalog',
     image: '/images/exia.png',
-    imageAlt: 'Gundam Exia',
     gradient: 'linear-gradient(120deg, #ff5a1f 0%, #ff8a4d 55%, #ffb37a 100%)',
   },
   {
@@ -36,7 +25,6 @@ const SLIDES: Slide[] = [
     ctaLabel: 'Xem hệ thống Grade',
     ctaHref: '#catalog',
     image: '/images/unicorn.png',
-    imageAlt: 'Unicorn Gundam Real Grade',
     gradient: 'linear-gradient(120deg, #c2410c 0%, #ff5a1f 55%, #ffb37a 100%)',
   },
   {
@@ -47,7 +35,6 @@ const SLIDES: Slide[] = [
     ctaLabel: 'Mua ngay',
     ctaHref: '#catalog',
     image: '/images/rx782.png',
-    imageAlt: 'RX-78-2 Gundam Perfect Grade',
     gradient: 'linear-gradient(120deg, #14161a 0%, #3a2a20 55%, #ff5a1f 100%)',
   },
 ];
@@ -55,7 +42,10 @@ const SLIDES: Slide[] = [
 const AUTOPLAY_MS = 5500;
 
 export default function PromoCarousel() {
-  const [active, setActive] = useState(0);
+  const { banners } = useBanners();
+  const SLIDES = banners.length > 0 ? banners : DEFAULT_SLIDES;
+  const [rawActive, setActive] = useState(0);
+  const active = rawActive % SLIDES.length;
   const [isPaused, setIsPaused] = useState(false);
   const reducedMotionRef = useRef(false);
 
@@ -69,7 +59,7 @@ export default function PromoCarousel() {
       setActive((prev) => (prev + 1) % SLIDES.length);
     }, AUTOPLAY_MS);
     return () => clearInterval(timer);
-  }, [isPaused]);
+  }, [isPaused, SLIDES.length]);
 
   return (
     <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4 md:pb-5">
@@ -99,6 +89,7 @@ export default function PromoCarousel() {
               <p className="mt-2 text-xs sm:text-sm leading-relaxed max-w-sm" style={{ color: 'rgba(255,255,255,0.85)' }}>
                 {slide.body}
               </p>
+              {slide.ctaLabel && (
               <a
                 href={slide.ctaHref}
                 className="mt-5 inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold cursor-pointer transition-transform duration-150 active:scale-95"
@@ -106,13 +97,15 @@ export default function PromoCarousel() {
               >
                 {slide.ctaLabel} <ChevronRight size={14} strokeWidth={2} />
               </a>
+              )}
             </div>
 
+            {slide.image && (
             <div className="hidden sm:flex relative z-10 items-center justify-center h-full w-2/5 pr-6 md:pr-10">
               <div className="relative w-full h-4/5">
                 <Image
                   src={slide.image}
-                  alt={slide.imageAlt}
+                  alt={slide.headline}
                   fill
                   sizes="(min-width: 1024px) 512px, 40vw"
                   priority={i === 0}
@@ -121,6 +114,7 @@ export default function PromoCarousel() {
                 />
               </div>
             </div>
+            )}
           </div>
         ))}
 

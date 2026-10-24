@@ -16,7 +16,7 @@ import { useTheme, ThemePreference } from '../../hooks/use-theme';
 import { useDisplay, TextSize } from '../../hooks/use-display';
 import { useLanguage } from '../../hooks/use-language';
 import { AuthUser } from '../../hooks/use-auth';
-import { ROLE_LABEL, isStaff as isStaffRole } from '../../lib/permissions';
+import { roleLabelKey, isStaff as isStaffRole } from '../../lib/permissions';
 import { DictionaryKey, Language } from '../i18n/dictionary';
 import { GRADE_CATEGORIES } from '../data/products';
 
@@ -109,7 +109,7 @@ function ProfileForm({
         <div>
           <dt style={{ color: 'var(--text-muted)' }}>{t('settings.account.role')}</dt>
           <dd className="font-semibold mt-0.5" style={{ color: 'var(--text-primary)' }}>
-            {ROLE_LABEL[user.role]}
+            {t(roleLabelKey(user.role))}
           </dd>
         </div>
         {joined && (

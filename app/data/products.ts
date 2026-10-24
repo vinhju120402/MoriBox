@@ -77,8 +77,16 @@ export interface Product {
   scale: string;
   series: string;
   price: number;
-  /** Discounted price for a limited-time flash sale. Presence of this field marks the product as on sale. */
+  /** Discounted price for a limited-time flash sale. Presence of this field marks the product as on sale.
+   *  Loaded from the database it is only set while the sale window is open. */
   salePrice?: number;
+  /** The sale price as stored (admin screens), even when the sale has not started or has ended. */
+  storedSalePrice?: number;
+  /** ISO timestamps bounding the sale; empty = no limit. */
+  saleStartsAt?: string;
+  saleEndsAt?: string;
+  /** Where the stored sale is in its window (set when loaded from the database). */
+  salePhase?: 'upcoming' | 'live' | 'ended';
   image: string;
   /** Extra gallery photos beyond the cover `image` (admin upload/capture, up to 5 total). */
   images?: string[];

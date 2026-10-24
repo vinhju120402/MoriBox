@@ -163,9 +163,9 @@ export default function Navbar({
           {isStaff ? (
             <>
               {groupedNav(ADMIN_NAV_ITEMS.filter(item => can(role, item.permission))).map(group => (
-                <div key={group.group} className="space-y-1.5 mb-4">
+                <div key={group.groupKey} className="space-y-1.5 mb-4">
                   <p className="text-[11px] font-semibold uppercase tracking-wide px-1" style={{ color: 'var(--text-muted)' }}>
-                    {group.group}
+                    {t(group.groupKey)}
                   </p>
                   {group.items.map(item => {
                     const Icon = item.icon;
@@ -179,7 +179,7 @@ export default function Navbar({
                         className={`filter-pill w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold cursor-pointer${isActive ? ' active' : ''}`}
                       >
                         <Icon size={15} strokeWidth={2} />
-                        {item.label}
+                        {t(item.labelKey)}
                         {(badges[item.key] ?? 0) > 0 && (
                           <span className="ml-auto min-w-5 h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center" style={{ background: 'var(--accent)', color: '#fff' }}>
                             {badges[item.key]}

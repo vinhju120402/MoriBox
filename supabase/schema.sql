@@ -269,6 +269,26 @@ alter table public.order_items add column if not exists cost integer not null de
 -- Per-product low-stock alert level (default 5).
 alter table public.products add column if not exists low_stock_threshold integer not null default 5 check (low_stock_threshold >= 0);
 
+-- Scheduled sales: sale_price only applies inside [sale_starts_at, sale_ends_at).
+-- Either end may be empty (= no limit). Everything that charges money goes through
+-- effective_price(), so an expired sale can never be bought at the old price.
+alter table public.products add column if not exists sale_starts_at timestamptz;
+alter table public.products add column if not exists sale_ends_at timestamptz;
+
+create or replace function public.effective_price(p public.products)
+returns integer
+language sql
+stable
+as $$
+  select case
+           when p.sale_price is not null
+            and (p.sale_starts_at is null or p.sale_starts_at <= now())
+            and (p.sale_ends_at is null or now() < p.sale_ends_at)
+           then p.sale_price
+           else p.price
+         end;
+$$;
+
 create index if not exists orders_user_idx on public.orders (user_id, created_at desc);
 create index if not exists order_items_order_idx on public.order_items (order_id);
 
@@ -515,6 +535,13 @@ create table if not exists public.shop_settings (
   bank_name          text not null default '',
   updated_at         timestamptz not null default now()
 );
+alter table public.shop_settings add column if not exists business_name    text not null default '';
+alter table public.shop_settings add column if not exists business_address text not null default '';
+alter table public.shop_settings add column if not exists tax_code         text not null default '';
+alter table public.shop_settings add column if not exists contact_phone    text not null default '';
+alter table public.shop_settings add column if not exists contact_email    text not null default '';
+alter table public.shop_settings add column if not exists opening_hours    text not null default '';
+alter table public.shop_settings add column if not exists return_days      integer not null default 7 check (return_days between 0 and 60);
 insert into public.shop_settings (id) values (true) on conflict (id) do nothing;
 alter table public.shop_settings enable row level security;
 
@@ -613,7 +640,7 @@ begin
   for v_item in select * from jsonb_array_elements(p_items) loop
     select * into v_prod from public.products where id = v_item ->> 'product_id';
     if found then
-      v_subtotal := v_subtotal + coalesce(v_prod.sale_price, v_prod.price) * greatest((v_item ->> 'quantity')::int, 0);
+      v_subtotal := v_subtotal + public.effective_price(v_prod) * greatest((v_item ->> 'quantity')::int, 0);
     end if;
   end loop;
   return jsonb_build_object('subtotal', v_subtotal, 'discount', public.compute_coupon_discount(p_code, v_subtotal));
@@ -708,7 +735,7 @@ begin
       raise exception 'insufficient_stock: %', v_prod.name;
     end if;
 
-    v_unit := coalesce(v_prod.sale_price, v_prod.price);
+    v_unit := public.effective_price(v_prod);
     v_subtotal := v_subtotal + v_unit * v_qty;
     select coalesce(c.cost_price, 0) into v_cost from public.product_costs c where c.product_id = v_prod.id;
     v_cost := coalesce(v_cost, 0);
@@ -1378,3 +1405,285 @@ update public.profiles p
    and u.email_confirmed_at is not null
    and lower(p.email) = a.email
    and p.role = 'customer';
+
+-- ───────────────────────── Homepage banners ─────────────────────────
+-- Shown in the home carousel. Public sees only active banners inside their window;
+-- an admin sees (and edits) all of them. With no live banner the site falls back
+-- to its built-in slides.
+create table if not exists public.banners (
+  id          uuid primary key default gen_random_uuid(),
+  eyebrow     text not null default '',
+  headline    text not null check (length(trim(headline)) > 0),
+  body        text not null default '',
+  cta_label   text not null default '',
+  cta_href    text not null default '#catalog',
+  image       text not null default '',
+  gradient    text not null default 'linear-gradient(120deg, #ff5a1f 0%, #ff8a4d 55%, #ffb37a 100%)',
+  sort_order  integer not null default 0,
+  active      boolean not null default true,
+  starts_at   timestamptz,
+  ends_at     timestamptz,
+  created_at  timestamptz not null default now()
+);
+alter table public.banners enable row level security;
+
+drop policy if exists "banners: read live or admin" on public.banners;
+create policy "banners: read live or admin" on public.banners
+  for select using (
+    public.is_admin()
+    or (active and (starts_at is null or starts_at <= now()) and (ends_at is null or now() < ends_at))
+  );
+drop policy if exists "banners: admin write" on public.banners;
+create policy "banners: admin write" on public.banners
+  for all using (public.is_admin()) with check (public.is_admin());
+
+drop trigger if exists banners_audit on public.banners;
+create trigger banners_audit
+  after insert or update or delete on public.banners
+  for each row execute function public.audit_generic();
+
+-- ───────────────────────── Returns (đổi trả) ─────────────────────────
+-- requested -> approved -> shipped -> received -> refunded
+--           \-> rejected          (staff, before the parcel is sent)
+--  requested/approved -> closed   (customer withdraws)
+-- A customer can ask for a return on a delivered order inside the shop's return window
+-- (shop_settings.return_days). One return per order. Money is paid back by hand, like
+-- cancellations: staff mark it refunded and note the transfer.
+create table if not exists public.return_requests (
+  id             uuid primary key default gen_random_uuid(),
+  code           text not null,
+  order_id       uuid not null references public.orders (id) on delete cascade,
+  order_code     text not null default '',      -- copied so the warehouse can show it without reading orders
+  customer_name  text not null default '',
+  user_id        uuid references auth.users (id) on delete set null,
+  reason         text not null check (reason in ('defective','wrong_item','not_as_described','changed_mind','other')),
+  details        text not null default '' check (length(details) <= 1000),
+  items          jsonb not null,
+  refund_amount  integer not null check (refund_amount >= 0),
+  status         text not null default 'requested'
+                 check (status in ('requested','approved','rejected','shipped','received','refunded','closed')),
+  tracking_code  text,
+  staff_note     text,
+  restocked      boolean not null default false,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create index if not exists return_requests_order_idx on public.return_requests (order_id);
+create index if not exists return_requests_user_idx on public.return_requests (user_id, created_at desc);
+alter table public.return_requests enable row level security;
+
+-- Read only; every change goes through the functions below.
+drop policy if exists "return_requests: read own or staff" on public.return_requests;
+create policy "return_requests: read own or staff" on public.return_requests
+  for select using (user_id = auth.uid() or public.has_role(array['admin','warehouse','accountant']));
+
+create or replace function public.request_return(p_order_id uuid, p_reason text, p_details text, p_items jsonb)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order     public.orders%rowtype;
+  v_days      integer;
+  v_item      jsonb;
+  v_row       record;
+  v_qty       integer;
+  v_sum       integer := 0;
+  v_lines     jsonb := '[]'::jsonb;
+  v_refund    integer;
+  v_id        uuid := gen_random_uuid();
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+  select * into v_order from public.orders where id = p_order_id for update;
+  if not found or v_order.user_id is distinct from auth.uid() then
+    raise exception 'order_not_found';
+  end if;
+  if v_order.status <> 'delivered' then
+    raise exception 'order_not_delivered';
+  end if;
+  select return_days into v_days from public.shop_settings where id;
+  v_days := coalesce(v_days, 7);
+  if now() > coalesce(v_order.status_updated_at, v_order.created_at) + make_interval(days => v_days) then
+    raise exception 'return_window_closed';
+  end if;
+  if exists (select 1 from public.return_requests where order_id = p_order_id and status not in ('rejected', 'closed')) then
+    raise exception 'return_already_exists';
+  end if;
+  if p_reason not in ('defective','wrong_item','not_as_described','changed_mind','other') then
+    raise exception 'invalid_reason';
+  end if;
+  if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'no_items';
+  end if;
+
+  for v_item in select * from jsonb_array_elements(p_items) loop
+    v_qty := (v_item ->> 'quantity')::int;
+    select product_id, name, price, sum(quantity)::int as bought into v_row
+      from public.order_items
+     where order_id = p_order_id and product_id = v_item ->> 'product_id'
+     group by product_id, name, price;
+    if not found or v_qty is null or v_qty < 1 or v_qty > v_row.bought then
+      raise exception 'invalid_items';
+    end if;
+    v_sum := v_sum + v_row.price * v_qty;
+    v_lines := v_lines || jsonb_build_object('product_id', v_row.product_id, 'name', v_row.name, 'price', v_row.price, 'quantity', v_qty);
+  end loop;
+
+  -- A coupon discount is shared out over the items, so a refund never exceeds what was paid.
+  v_refund := case when v_order.subtotal > 0
+                   then floor(v_sum::numeric * (v_order.subtotal - v_order.discount) / v_order.subtotal)::int
+                   else 0 end;
+
+  insert into public.return_requests (id, code, order_id, order_code, customer_name, user_id, reason, details, items, refund_amount)
+  values (v_id, 'RT-' || lpad((floor(random() * 900000) + 100000)::int::text, 6, '0'), p_order_id, v_order.code, v_order.customer_name, auth.uid(),
+          p_reason, left(coalesce(p_details, ''), 1000), v_lines, v_refund);
+  perform public.write_audit('return.request', 'return', v_id::text, jsonb_build_object('order', v_order.code, 'refund', v_refund));
+  return v_id;
+end;
+$$;
+revoke all on function public.request_return(uuid, text, text, jsonb) from public, anon;
+grant execute on function public.request_return(uuid, text, text, jsonb) to authenticated;
+
+-- Staff approve (customer then ships the parcel back) or reject.
+create or replace function public.review_return(p_id uuid, p_approve boolean, p_note text default null)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_note text := nullif(trim(coalesce(p_note, '')), '');
+begin
+  if not public.has_role(array['admin','accountant']) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  update public.return_requests
+     set status = case when p_approve then 'approved' else 'rejected' end,
+         staff_note = v_note, updated_at = now()
+   where id = p_id and status = 'requested';
+  if not found then
+    raise exception 'invalid_transition';
+  end if;
+  perform public.write_audit('return.review', 'return', p_id::text, jsonb_build_object('approved', p_approve, 'note', v_note));
+end;
+$$;
+revoke all on function public.review_return(uuid, boolean, text) from public, anon;
+grant execute on function public.review_return(uuid, boolean, text) to authenticated;
+
+-- Customer: "I sent the parcel", with the carrier's tracking code.
+create or replace function public.ship_return(p_id uuid, p_tracking text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_tracking text := nullif(trim(coalesce(p_tracking, '')), '');
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+  if v_tracking is null then
+    raise exception 'tracking_required';
+  end if;
+  update public.return_requests
+     set status = 'shipped', tracking_code = left(v_tracking, 60), updated_at = now()
+   where id = p_id and user_id = auth.uid() and status = 'approved';
+  if not found then
+    raise exception 'invalid_transition';
+  end if;
+  perform public.write_audit('return.ship', 'return', p_id::text, jsonb_build_object('tracking', v_tracking));
+end;
+$$;
+revoke all on function public.ship_return(uuid, text) from public, anon;
+grant execute on function public.ship_return(uuid, text) to authenticated;
+
+-- Customer withdraws a request that has not been sent back yet.
+create or replace function public.close_return(p_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated' using errcode = '28000';
+  end if;
+  update public.return_requests set status = 'closed', updated_at = now()
+   where id = p_id and user_id = auth.uid() and status in ('requested', 'approved');
+  if not found then
+    raise exception 'invalid_transition';
+  end if;
+  perform public.write_audit('return.close', 'return', p_id::text, '{}'::jsonb);
+end;
+$$;
+revoke all on function public.close_return(uuid) from public, anon;
+grant execute on function public.close_return(uuid) to authenticated;
+
+-- Warehouse: parcel arrived and was inspected. Good items can go back on the shelf.
+create or replace function public.receive_return(p_id uuid, p_restock boolean, p_note text default null)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ret  public.return_requests%rowtype;
+  v_item jsonb;
+  v_note text := nullif(trim(coalesce(p_note, '')), '');
+begin
+  if not public.has_role(array['admin','warehouse']) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  select * into v_ret from public.return_requests where id = p_id and status = 'shipped' for update;
+  if not found then
+    raise exception 'invalid_transition';
+  end if;
+
+  if p_restock then
+    perform set_config('app.stock_reason', 'return', true);
+    perform set_config('app.order_id', v_ret.order_id::text, true);
+    for v_item in select * from jsonb_array_elements(v_ret.items) loop
+      update public.products set stock = stock + (v_item ->> 'quantity')::int where id = v_item ->> 'product_id';
+    end loop;
+    perform set_config('app.stock_reason', '', true);
+    perform set_config('app.order_id', '', true);
+  end if;
+
+  update public.return_requests
+     set status = 'received', restocked = coalesce(p_restock, false),
+         staff_note = coalesce(v_note, staff_note), updated_at = now()
+   where id = p_id;
+  perform public.write_audit('return.receive', 'return', p_id::text, jsonb_build_object('restock', p_restock, 'note', v_note));
+end;
+$$;
+revoke all on function public.receive_return(uuid, boolean, text) from public, anon;
+grant execute on function public.receive_return(uuid, boolean, text) to authenticated;
+
+-- Accountant: the money has been paid back.
+create or replace function public.refund_return(p_id uuid, p_note text default null)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_note text := nullif(trim(coalesce(p_note, '')), '');
+begin
+  if not public.has_role(array['admin','accountant']) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  update public.return_requests
+     set status = 'refunded', staff_note = coalesce(v_note, staff_note), updated_at = now()
+   where id = p_id and status = 'received';
+  if not found then
+    raise exception 'invalid_transition';
+  end if;
+  perform public.write_audit('return.refund', 'return', p_id::text, jsonb_build_object('note', v_note));
+end;
+$$;
+revoke all on function public.refund_return(uuid, text) from public, anon;
+grant execute on function public.refund_return(uuid, text) to authenticated;

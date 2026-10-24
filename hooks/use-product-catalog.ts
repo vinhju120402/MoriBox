@@ -13,6 +13,8 @@ interface ProductRow {
   series: string;
   price: number;
   sale_price: number | null;
+  sale_starts_at: string | null;
+  sale_ends_at: string | null;
   image: string;
   images: string[];
   stock: number;
@@ -23,14 +25,31 @@ interface ProductRow {
   description: string;
 }
 
-const fromRow = (r: ProductRow): Product => ({
+// The sale only counts inside its window; the database applies the same rule when charging.
+const saleIsLive = (r: ProductRow, now: number) =>
+  r.sale_price != null
+  && (!r.sale_starts_at || new Date(r.sale_starts_at).getTime() <= now)
+  && (!r.sale_ends_at || now < new Date(r.sale_ends_at).getTime());
+
+const salePhase = (r: ProductRow, now: number): Product['salePhase'] => {
+  if (r.sale_price == null) return undefined;
+  if (r.sale_starts_at && now < new Date(r.sale_starts_at).getTime()) return 'upcoming';
+  if (r.sale_ends_at && now >= new Date(r.sale_ends_at).getTime()) return 'ended';
+  return 'live';
+};
+
+const fromRow = (r: ProductRow, now: number): Product => ({
   id: r.id,
   name: r.name,
   grade: r.grade,
   scale: r.scale,
   series: r.series,
   price: r.price,
-  salePrice: r.sale_price ?? undefined,
+  salePrice: saleIsLive(r, now) ? (r.sale_price ?? undefined) : undefined,
+  storedSalePrice: r.sale_price ?? undefined,
+  saleStartsAt: r.sale_starts_at ?? undefined,
+  saleEndsAt: r.sale_ends_at ?? undefined,
+  salePhase: salePhase(r, now),
   image: r.image,
   images: r.images?.length ? r.images : undefined,
   stock: r.stock,
@@ -50,6 +69,8 @@ const toRow = (p: Partial<Product>): Partial<ProductRow> => {
   if (p.series !== undefined) row.series = p.series;
   if (p.price !== undefined) row.price = p.price;
   if ('salePrice' in p) row.sale_price = p.salePrice ?? null;
+  if ('saleStartsAt' in p) row.sale_starts_at = p.saleStartsAt ?? null;
+  if ('saleEndsAt' in p) row.sale_ends_at = p.saleEndsAt ?? null;
   if (p.image !== undefined) row.image = p.image;
   if (p.images !== undefined) row.images = p.images;
   if (p.stock !== undefined) row.stock = p.stock;
@@ -68,6 +89,11 @@ interface CatalogState {
   products: Product[];
   hasLoaded: boolean;
 }
+
+// Raw rows are kept so the storefront can flip a sale on/off at its start/end time
+// without another request.
+let rows: ProductRow[] = [];
+let boundaryTimer: ReturnType<typeof setTimeout> | undefined;
 
 const SERVER_STATE: CatalogState = { products: PRODUCTS, hasLoaded: false };
 let state: CatalogState = SERVER_STATE;
@@ -88,7 +114,22 @@ export async function refreshCatalog() {
     setState({ ...state, hasLoaded: true });
     return;
   }
-  setState({ products: (data as ProductRow[]).map(fromRow), hasLoaded: true });
+  rows = data as ProductRow[];
+  rebuild();
+}
+
+// Maps the rows with the current time and schedules the next sale start/end.
+function rebuild() {
+  const now = Date.now();
+  setState({ products: rows.map(r => fromRow(r, now)), hasLoaded: true });
+  clearTimeout(boundaryTimer);
+  const next = rows
+    .flatMap(r => [r.sale_starts_at, r.sale_ends_at])
+    .map(v => (v ? new Date(v).getTime() : 0))
+    .filter(t => t > now)
+    .sort((a, b) => a - b)[0];
+  // setTimeout can't wait longer than ~24 days.
+  if (next) boundaryTimer = setTimeout(rebuild, Math.min(next - now + 250, 2_000_000_000));
 }
 
 function subscribe(cb: () => void) {

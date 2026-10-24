@@ -1,6 +1,7 @@
 'use client';
 
 import type { Order } from '../hooks/use-orders';
+import { useLanguage } from '../hooks/use-language';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 // Local-calendar day key (not UTC), so an order at 1am Vietnam time lands on the right day.
@@ -20,6 +21,7 @@ const compact = (v: number) =>
 
 // Money actually collected per day (paid, not cancelled) for the last `days` days.
 export default function RevenueChart({ orders, days = 7, endDate }: { orders: Order[]; days?: number; endDate?: Date }) {
+  const { t } = useLanguage();
   const series = lastNDays(days, endDate ?? new Date()).map(day => ({
     ...day,
     total: orders
@@ -35,8 +37,8 @@ export default function RevenueChart({ orders, days = 7, endDate }: { orders: Or
     <div className="card-surface p-5">
       <div className="flex items-start justify-between gap-3 flex-wrap mb-5">
         <div>
-          <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Doanh thu {days} ngày gần nhất</h3>
-          <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>Chỉ tính đơn đã thu tiền</p>
+          <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{t('adm.rev.chartTitle', { days })}</h3>
+          <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>{t('adm.rev.chartSub')}</p>
         </div>
         <p className="text-lg font-bold font-display" style={{ color: 'var(--accent)' }}>{sum.toLocaleString('vi-VN')}đ</p>
       </div>
@@ -98,7 +100,7 @@ export default function RevenueChart({ orders, days = 7, endDate }: { orders: Or
             className="flex-1 text-center text-[10px] font-semibold overflow-visible whitespace-nowrap"
             style={{ color: d.isToday ? 'var(--accent)' : 'var(--text-muted)' }}
           >
-            {d.isToday ? (days <= 14 ? 'Hôm nay' : 'Nay') : idx % labelStep === 0 ? d.label : ''}
+            {d.isToday ? (days <= 14 ? t('adm.rev.today') : t('adm.rev.todayShort')) : idx % labelStep === 0 ? d.label : ''}
           </p>
         ))}
       </div>

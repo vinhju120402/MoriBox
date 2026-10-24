@@ -8,7 +8,8 @@ import { useAuth } from '../hooks/use-auth';
 import { useAdminBadges } from '../hooks/use-admin-badges';
 import { notifyOrdersChanged } from '../hooks/use-orders';
 import { getSupabase } from '../lib/supabase';
-import { can, ROLE_LABEL } from '../lib/permissions';
+import { can, roleLabelKey } from '../lib/permissions';
+import { useLanguage } from '../hooks/use-language';
 import { ADMIN_NAV_ITEMS as NAV_ITEMS, AdminNavKey, groupedNav } from '../lib/admin-nav';
 
 interface AdminShellProps {
@@ -23,6 +24,7 @@ interface AdminShellProps {
 
 export default function AdminShell({ active, title, description, actions, children }: AdminShellProps) {
   const { user, isLoggedIn, isStaff, role, hasLoaded, logout } = useAuth();
+  const { t } = useLanguage();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const badges = useAdminBadges();
@@ -41,13 +43,13 @@ export default function AdminShell({ active, title, description, actions, childr
         if (payload.eventType === 'INSERT') {
           const code = (payload.new as { code?: string }).code ?? '';
           const id = Date.now() + Math.random();
-          setToasts(t => [...t, { id, text: `Có đơn hàng mới ${code}` }]);
-          window.setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 8000);
+          setToasts(list => [...list, { id, text: t('adm.shell.newOrder', { code }) }]);
+          window.setTimeout(() => setToasts(list => list.filter(x => x.id !== id)), 8000);
         }
       })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [role]);
+  }, [role, t]);
 
   useEffect(() => {
     if (!hasLoaded) return;
@@ -58,7 +60,7 @@ export default function AdminShell({ active, title, description, actions, childr
   if (!hasLoaded || !isLoggedIn || !isStaff) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-base)' }}>
-        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Đang kiểm tra quyền truy cập…</p>
+        <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{t('adm.shell.checking')}</p>
       </div>
     );
   }
@@ -91,7 +93,7 @@ export default function AdminShell({ active, title, description, actions, childr
           WebkitBackdropFilter: 'blur(16px)',
         }}
       >
-        <button onClick={() => setMobileOpen(true)} aria-label="Mở menu" className="btn-ghost p-2 cursor-pointer">
+        <button onClick={() => setMobileOpen(true)} aria-label={t('adm.shell.openMenu')} className="btn-ghost p-2 cursor-pointer">
           <Menu size={20} strokeWidth={2} />
         </button>
         {brand}
@@ -118,15 +120,15 @@ export default function AdminShell({ active, title, description, actions, childr
       >
         <div className="flex items-center justify-between px-5 h-16 shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
           {brand}
-          <button onClick={() => setMobileOpen(false)} aria-label="Đóng menu" className="md:hidden btn-ghost p-1.5 cursor-pointer">
+          <button onClick={() => setMobileOpen(false)} aria-label={t('adm.shell.closeMenu')} className="md:hidden btn-ghost p-1.5 cursor-pointer">
             <X size={18} strokeWidth={2} />
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-4 py-5 space-y-5" aria-label="Quản trị">
+        <nav className="flex-1 overflow-y-auto px-4 py-5 space-y-5" aria-label={t('adm.shell.navLabel')}>
           {groupedNav(allowedNav).map(group => (
-            <div key={group.group} className="space-y-1.5">
-              <p className="px-1 text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>{group.group}</p>
+            <div key={group.groupKey} className="space-y-1.5">
+              <p className="px-1 text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>{t(group.groupKey)}</p>
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const isActive = active === item.key;
@@ -139,12 +141,12 @@ export default function AdminShell({ active, title, description, actions, childr
                     className={`filter-pill w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold cursor-pointer${isActive ? ' active' : ''}`}
                   >
                     <Icon size={15} strokeWidth={2} />
-                    {item.label}
+                    {t(item.labelKey)}
                     {(badges[item.key] ?? 0) > 0 && (
                       <span
                         className="ml-auto min-w-5 h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center"
                         style={{ background: 'var(--accent)', color: '#fff' }}
-                        aria-label={`${badges[item.key]} việc cần xử lý`}
+                        aria-label={t('adm.shell.badge', { n: badges[item.key] })}
                       >
                         {badges[item.key]}
                       </span>
@@ -158,11 +160,11 @@ export default function AdminShell({ active, title, description, actions, childr
 
         <div className="px-4 py-5 space-y-2 shrink-0" style={{ borderTop: '1px solid var(--border-subtle)' }}>
           <div className="px-1">
-            <p className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{user?.name || 'Tài khoản'}</p>
+            <p className="text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{user?.name || t('adm.shell.account')}</p>
             <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
             {role && (
               <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}>
-                {ROLE_LABEL[role]}
+                {t(roleLabelKey(role))}
               </span>
             )}
           </div>
@@ -171,14 +173,14 @@ export default function AdminShell({ active, title, description, actions, childr
             className="btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold cursor-pointer"
             style={{ border: '1px solid var(--border-subtle)' }}
           >
-            <Store size={13} strokeWidth={2} /> Về cửa hàng
+            <Store size={13} strokeWidth={2} /> {t('adm.shell.toStore')}
           </Link>
           <button
             onClick={() => { void logout(); router.push('/'); }}
             className="btn-ghost w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold cursor-pointer"
             style={{ border: '1px solid var(--border-subtle)' }}
           >
-            <LogOut size={13} strokeWidth={2} /> Đăng xuất
+            <LogOut size={13} strokeWidth={2} /> {t('adm.shell.logout')}
           </button>
         </div>
       </aside>
@@ -202,13 +204,13 @@ export default function AdminShell({ active, title, description, actions, childr
           ) : (
             <div className="card-surface max-w-md mx-auto mt-12 p-8 text-center space-y-3" role="alert">
               <ShieldCheck size={22} strokeWidth={2} className="mx-auto" style={{ color: 'var(--accent)' }} />
-              <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Bạn không có quyền truy cập trang này</p>
+              <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{t('adm.shell.noAccess')}</p>
               <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                Vai trò hiện tại của bạn là {role ? ROLE_LABEL[role] : '—'}. Liên hệ quản trị viên nếu cần thêm quyền.
+                {t('adm.shell.noAccessDesc', { role: role ? t(roleLabelKey(role)) : '—' })}
               </p>
               {allowedNav[0] && (
                 <Link href={allowedNav[0].href} className="btn-primary inline-block px-5 py-2 text-xs font-semibold">
-                  Về {allowedNav[0].label}
+                  {t('adm.shell.backTo', { page: t(allowedNav[0].labelKey) })}
                 </Link>
               )}
             </div>

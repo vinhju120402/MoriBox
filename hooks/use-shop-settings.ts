@@ -10,6 +10,14 @@ export interface ShopSettings {
   bankAccount: string;
   bankAccountName: string;
   bankName: string;
+  businessName: string;
+  businessAddress: string;
+  taxCode: string;
+  contactPhone: string;
+  contactEmail: string;
+  openingHours: string;
+  /** How many days after delivery a customer may ask for a return. */
+  returnDays: number;
 }
 
 interface SettingsRow {
@@ -19,6 +27,13 @@ interface SettingsRow {
   bank_account: string;
   bank_account_name: string;
   bank_name: string;
+  business_name: string;
+  business_address: string;
+  tax_code: string;
+  contact_phone: string;
+  contact_email: string;
+  opening_hours: string;
+  return_days: number;
 }
 
 const DEFAULTS: ShopSettings = {
@@ -28,6 +43,13 @@ const DEFAULTS: ShopSettings = {
   bankAccount: '',
   bankAccountName: '',
   bankName: '',
+  businessName: '',
+  businessAddress: '',
+  taxCode: '',
+  contactPhone: '',
+  contactEmail: '',
+  openingHours: '',
+  returnDays: 7,
 };
 
 const fromRow = (r: SettingsRow): ShopSettings => ({
@@ -37,6 +59,13 @@ const fromRow = (r: SettingsRow): ShopSettings => ({
   bankAccount: r.bank_account,
   bankAccountName: r.bank_account_name,
   bankName: r.bank_name,
+  businessName: r.business_name ?? '',
+  businessAddress: r.business_address ?? '',
+  taxCode: r.tax_code ?? '',
+  contactPhone: r.contact_phone ?? '',
+  contactEmail: r.contact_email ?? '',
+  openingHours: r.opening_hours ?? '',
+  returnDays: r.return_days ?? 7,
 });
 
 // Shared store (single row in `shop_settings`, readable by everyone because
@@ -86,6 +115,13 @@ export function useShopSettings() {
     if (patch.bankAccount !== undefined) row.bank_account = patch.bankAccount;
     if (patch.bankAccountName !== undefined) row.bank_account_name = patch.bankAccountName;
     if (patch.bankName !== undefined) row.bank_name = patch.bankName;
+    if (patch.businessName !== undefined) row.business_name = patch.businessName;
+    if (patch.businessAddress !== undefined) row.business_address = patch.businessAddress;
+    if (patch.taxCode !== undefined) row.tax_code = patch.taxCode;
+    if (patch.contactPhone !== undefined) row.contact_phone = patch.contactPhone;
+    if (patch.contactEmail !== undefined) row.contact_email = patch.contactEmail;
+    if (patch.openingHours !== undefined) row.opening_hours = patch.openingHours;
+    if (patch.returnDays !== undefined) row.return_days = patch.returnDays;
     const { error } = await getSupabase().from('shop_settings').update({ ...row, updated_at: new Date().toISOString() }).eq('id', true);
     if (error) return { ok: false, error: error.message };
     await refreshShopSettings();

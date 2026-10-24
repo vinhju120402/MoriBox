@@ -4,30 +4,33 @@ import { useState } from 'react';
 import { Printer, PackageCheck, Truck, RefreshCw, Phone, MapPin, Hourglass } from 'lucide-react';
 import AdminShell from '../../../components/admin-shell';
 import { usePackingList, PackingOrder } from '../../../hooks/use-packing-list';
-import { PAYMENT_LABEL } from '../../../lib/payments';
+import { paymentLabelKey } from '../../../lib/payments';
+import { useLanguage } from '../../../hooks/use-language';
+import type { DictionaryKey } from '../../../app/i18n/dictionary';
 
 type Tab = 'pending' | 'confirmed' | 'shipping';
-const TABS: { value: Tab; label: string; empty: string }[] = [
-  { value: 'pending', label: 'Cần đóng gói', empty: 'Không có đơn nào cần đóng gói.' },
-  { value: 'confirmed', label: 'Chờ giao cho vận chuyển', empty: 'Chưa có đơn nào đã đóng gói đang chờ giao đi.' },
-  { value: 'shipping', label: 'Đang giao', empty: 'Chưa có đơn nào đang giao.' },
+const TABS: { value: Tab; label: DictionaryKey; empty: DictionaryKey }[] = [
+  { value: 'pending', label: 'adm.pack.tab.pending', empty: 'adm.pack.tab.pendingEmpty' },
+  { value: 'confirmed', label: 'adm.pack.tab.confirmed', empty: 'adm.pack.tab.confirmedEmpty' },
+  { value: 'shipping', label: 'adm.pack.tab.shipping', empty: 'adm.pack.tab.shippingEmpty' },
 ];
 
 const awaitingPayment = (o: PackingOrder) => o.paymentMethod !== 'cod' && o.paymentStatus !== 'paid';
 
-function describeError(raw: string) {
-  if (raw.includes('awaiting_payment')) return 'Đơn chuyển khoản này chưa nhận được tiền nên chưa thể đóng gói.';
-  if (raw.includes('order_cancelled')) return 'Đơn này đã bị hủy, vui lòng tải lại danh sách.';
-  return 'Không thể cập nhật. Vui lòng thử lại.';
+function describeError(raw: string): DictionaryKey {
+  if (raw.includes('awaiting_payment')) return 'adm.pack.err.awaitingPayment';
+  if (raw.includes('order_cancelled')) return 'adm.pack.err.cancelled';
+  return 'adm.pack.err.generic';
 }
 
 export default function PackingPage() {
   const { orders, hasLoaded, reload, setStatus } = usePackingList();
+  const { language, t } = useLanguage();
   const [tab, setTab] = useState<Tab>('pending');
   const [message, setMessage] = useState('');
 
   const visible = orders.filter(o => o.status === tab);
-  const activeTab = TABS.find(t => t.value === tab) ?? TABS[0];
+  const activeTab = TABS.find(x => x.value === tab) ?? TABS[0];
 
   // Units to pick across every order still waiting to be packed.
   const pickTotals = new Map<string, number>();
@@ -39,21 +42,21 @@ export default function PackingPage() {
   const move = async (o: PackingOrder, to: 'confirmed' | 'shipping') => {
     setMessage('');
     const r = await setStatus(o.id, to);
-    if (!r.ok) setMessage(describeError(r.error));
+    if (!r.ok) setMessage(t(describeError(r.error)));
   };
 
   return (
     <AdminShell
       active="dong-goi"
-      title="Đóng gói"
-      description="Những gì cần soạn và giao đi. Danh sách này không hiện giá tiền."
+      title={t('adm.pack.title')}
+      description={t('adm.pack.desc')}
       actions={
         <div className="flex items-center gap-2">
           <button onClick={reload} className="btn-outline px-3 py-2 text-xs font-semibold cursor-pointer flex items-center gap-1.5">
-            <RefreshCw size={13} strokeWidth={2} /> Tải lại
+            <RefreshCw size={13} strokeWidth={2} /> {t('adm.pack.reload')}
           </button>
           <button onClick={() => window.print()} className="btn-primary px-3 py-2 text-xs font-semibold cursor-pointer flex items-center gap-1.5">
-            <Printer size={13} strokeWidth={2} /> In danh sách
+            <Printer size={13} strokeWidth={2} /> {t('adm.pack.print')}
           </button>
         </div>
       }
@@ -65,7 +68,7 @@ export default function PackingPage() {
       {/* Pick list: totals per product for everything waiting to be packed */}
       {pickList.length > 0 && (
         <div className="card-surface p-5 mb-6">
-          <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>Tổng hợp cần soạn ({pickList.reduce((a, [, n]) => a + n, 0)} sản phẩm)</h3>
+          <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>{t('adm.pack.pickTotal', { n: pickList.reduce((a, [, n]) => a + n, 0) })}</h3>
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1.5">
             {pickList.map(([name, qty]) => (
               <li key={name} className="flex justify-between gap-3 text-xs">
@@ -77,26 +80,26 @@ export default function PackingPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 mb-4 print:hidden" role="tablist" aria-label="Trạng thái đóng gói">
-        {TABS.map(t => (
+      <div className="flex flex-wrap gap-2 mb-4 print:hidden" role="tablist" aria-label={t('adm.pack.tabsAria')}>
+        {TABS.map(tb => (
           <button
-            key={t.value}
+            key={tb.value}
             role="tab"
-            aria-selected={tab === t.value}
-            onClick={() => setTab(t.value)}
-            className={`filter-pill px-3.5 py-1.5 text-xs font-semibold cursor-pointer${tab === t.value ? ' active' : ''}`}
+            aria-selected={tab === tb.value}
+            onClick={() => setTab(tb.value)}
+            className={`filter-pill px-3.5 py-1.5 text-xs font-semibold cursor-pointer${tab === tb.value ? ' active' : ''}`}
           >
-            {t.label} <span className="opacity-60">({orders.filter(o => o.status === t.value).length})</span>
+            {t(tb.label)} <span className="opacity-60">({orders.filter(o => o.status === tb.value).length})</span>
           </button>
         ))}
       </div>
 
       {!hasLoaded ? (
-        <p className="py-12 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>Đang tải…</p>
+        <p className="py-12 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>{t('adm.pack.loading')}</p>
       ) : visible.length === 0 ? (
         <div className="card-surface py-14 text-center">
           <PackageCheck size={26} strokeWidth={1.8} className="mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
-          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{activeTab.empty}</p>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t(activeTab.empty)}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -107,7 +110,7 @@ export default function PackingPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{o.code}</p>
-                    <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{new Date(o.createdAt).toLocaleString('vi-VN')}</p>
+                    <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{new Date(o.createdAt).toLocaleString(language === 'en' ? 'en-US' : 'vi-VN')}</p>
                   </div>
                   <span
                     className="px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap"
@@ -115,7 +118,7 @@ export default function PackingPage() {
                       ? { background: 'rgba(220,38,38,0.12)', color: '#dc2626' }
                       : { background: 'rgba(34,197,94,0.15)', color: '#16a34a' }}
                   >
-                    {o.paymentMethod === 'cod' ? 'COD' : o.paymentStatus === 'paid' ? `${PAYMENT_LABEL[o.paymentMethod]} · đã thu` : `${PAYMENT_LABEL[o.paymentMethod]} · chờ tiền`}
+                    {o.paymentMethod === 'cod' ? 'COD' : o.paymentStatus === 'paid' ? t('adm.pack.badgePaid', { method: t(paymentLabelKey(o.paymentMethod)) }) : t('adm.pack.badgeWaiting', { method: t(paymentLabelKey(o.paymentMethod)) })}
                   </span>
                 </div>
 
@@ -141,15 +144,15 @@ export default function PackingPage() {
                   <div className="mt-4 print:hidden">
                     {blocked ? (
                       <p className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: '#dc2626' }}>
-                        <Hourglass size={13} strokeWidth={2} /> Chờ nhận tiền chuyển khoản, chưa đóng gói được.
+                        <Hourglass size={13} strokeWidth={2} /> {t('adm.pack.blocked')}
                       </p>
                     ) : o.status === 'pending' ? (
                       <button onClick={() => move(o, 'confirmed')} className="btn-primary w-full py-2.5 text-xs font-semibold cursor-pointer flex items-center justify-center gap-2">
-                        <PackageCheck size={14} strokeWidth={2} /> Đã đóng gói
+                        <PackageCheck size={14} strokeWidth={2} /> {t('adm.pack.markPacked')}
                       </button>
                     ) : (
                       <button onClick={() => move(o, 'shipping')} className="btn-primary w-full py-2.5 text-xs font-semibold cursor-pointer flex items-center justify-center gap-2">
-                        <Truck size={14} strokeWidth={2} /> Đã giao cho vận chuyển
+                        <Truck size={14} strokeWidth={2} /> {t('adm.pack.markShipped')}
                       </button>
                     )}
                   </div>
