@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Product } from '@/app/data/products';
 import { X, Trash2, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, ShoppingBag, TicketPercent } from 'lucide-react';
 import ProductImage from './product-image';
@@ -369,26 +370,63 @@ export default function CartDrawer({
                   </div>
 
                   {addresses.length > 0 && (
-                    <div>
-                      <label htmlFor="saved-address" className="block text-[11px] font-semibold mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-                        Địa chỉ đã lưu
-                      </label>
-                      <select
-                        id="saved-address"
-                        className={inputCls + ' cursor-pointer'}
-                        value={addresses.find(a => a.name === shippingInfo.name && a.phone === shippingInfo.phone && a.address === shippingInfo.address)?.id ?? ''}
-                        onChange={(e) => {
-                          const a = addresses.find(x => x.id === e.target.value);
-                          if (a) fillFrom(a);
-                          else setShippingInfo({ name: '', phone: '', address: '', sector: 'Hà Nội' });
-                        }}
-                      >
-                        <option value="">Nhập địa chỉ mới</option>
-                        {addresses.map(a => (
-                          <option key={a.id} value={a.id}>{(a.label || a.name)}{a.isDefault ? ' (mặc định)' : ''} — {a.address}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <fieldset className="flex flex-col gap-2">
+                      <legend className="flex w-full items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>Chọn địa chỉ giao hàng</span>
+                        <Link href="/cai-dat#addresses" onClick={onClose} className="text-[11px] font-semibold" style={{ color: 'var(--accent)' }}>
+                          Quản lý địa chỉ
+                        </Link>
+                      </legend>
+                      <div className="max-h-64 overflow-y-auto flex flex-col gap-2 pr-1">
+                        {addresses.map(a => {
+                          const selected = a.name === shippingInfo.name && a.phone === shippingInfo.phone && a.address === shippingInfo.address;
+                          return (
+                            <label
+                              key={a.id}
+                              className="flex items-start gap-3 p-3 rounded-2xl cursor-pointer"
+                              style={{
+                                border: `1px solid ${selected ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                                background: selected ? 'var(--accent-dim)' : 'transparent',
+                              }}
+                            >
+                              <input
+                                type="radio"
+                                name="saved-address"
+                                checked={selected}
+                                onChange={() => fillFrom(a)}
+                                className="mt-0.5 accent-[var(--accent)]"
+                              />
+                              <span className="flex-1 min-w-0">
+                                <span className="flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                  {a.label || a.name}
+                                  {a.isDefault && (
+                                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold" style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}>Mặc định</span>
+                                  )}
+                                </span>
+                                <span className="block text-[11px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>{a.name} · {a.phone}</span>
+                                <span className="block text-[11px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{a.address}, {a.sector}</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                        <label
+                          className="flex items-center gap-3 p-3 rounded-2xl cursor-pointer"
+                          style={{
+                            border: `1px dashed ${isSavedAddress ? 'var(--border-strong)' : 'var(--accent)'}`,
+                            background: isSavedAddress ? 'transparent' : 'var(--accent-dim)',
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="saved-address"
+                            checked={!isSavedAddress}
+                            onChange={() => setShippingInfo({ name: '', phone: '', address: '', sector: 'Hà Nội' })}
+                            className="accent-[var(--accent)]"
+                          />
+                          <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>+ Giao tới địa chỉ mới</span>
+                        </label>
+                      </div>
+                    </fieldset>
                   )}
 
                   {/* Fields */}
