@@ -40,6 +40,7 @@ npm run dev
 
 1. Tạo dự án trên [supabase.com](https://supabase.com), lấy **Project URL** và **publishable key** (Connect hoặc Project Settings → API Keys) điền vào `.env.local`.
 2. SQL Editor → chạy toàn bộ [`supabase/schema.sql`](supabase/schema.sql). File chạy lại an toàn, hãy chạy lại mỗi khi cập nhật code.
+   Hoặc để máy chạy giúp: tạo mã truy cập tại https://supabase.com/dashboard/account/tokens, ghi `SUPABASE_ACCESS_TOKEN=sbp_...` vào `.env.local`, chạy `npm run db:apply` (thêm `-- --seed` để nạp cả sản phẩm mẫu), rồi **xóa mã đó** trên trang trên.
 3. Chạy [`supabase/seed.sql`](supabase/seed.sql) để có sản phẩm mẫu (tạo lại bằng `node scripts/generate-seed.mjs`).
 4. Authentication → Sign In / Providers → Email: tắt **Confirm email** khi phát triển, **bật lại khi bán thật**.
 5. Đăng ký một tài khoản trong app, rồi cấp quyền admin bằng SQL:
