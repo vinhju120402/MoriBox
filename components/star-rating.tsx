@@ -1,12 +1,16 @@
+'use client';
+
 import { Star } from 'lucide-react';
+import { useLanguage } from '../hooks/use-language';
 
 const AMBER = '#f59e0b';
 
 // Read-only stars (rounded to whole stars), with an accessible text label.
 export function Stars({ value, size = 13 }: { value: number; size?: number }) {
+  const { t } = useLanguage();
   const filled = Math.round(value);
   return (
-    <span className="inline-flex items-center gap-0.5" role="img" aria-label={`${value.toFixed(1)} trên 5 sao`}>
+    <span className="inline-flex items-center gap-0.5" role="img" aria-label={t('stars.label', { v: value.toFixed(1) })}>
       {[1, 2, 3, 4, 5].map(i => (
         <Star
           key={i}
@@ -23,15 +27,16 @@ export function Stars({ value, size = 13 }: { value: number; size?: number }) {
 
 // Clickable stars for the review form.
 export function StarInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const { t } = useLanguage();
   return (
-    <div role="radiogroup" aria-label="Chọn số sao" className="inline-flex items-center gap-1">
+    <div role="radiogroup" aria-label={t('stars.choose')} className="inline-flex items-center gap-1">
       {[1, 2, 3, 4, 5].map(i => (
         <button
           key={i}
           type="button"
           role="radio"
           aria-checked={value === i}
-          aria-label={`${i} sao`}
+          aria-label={t('stars.n', { n: i })}
           onClick={() => onChange(i)}
           className="p-0.5 cursor-pointer"
         >

@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { ShoppingCart, Boxes, Menu, X, User, LogOut, Zap, Settings, Package, Search, Heart } from 'lucide-react';
 import { CategoryLink } from '../app/data/products';
 import { useProductCatalog } from '../hooks/use-product-catalog';
 import { useLanguage } from '../hooks/use-language';
 import { useAuth } from '../hooks/use-auth';
 import { useAdminBadges } from '../hooks/use-admin-badges';
+import SearchBox from './search-box';
 import { ADMIN_NAV_ITEMS, groupedNav } from '../lib/admin-nav';
 import { can } from '../lib/permissions';
 
@@ -34,8 +35,6 @@ export default function Navbar({
 }: NavbarProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const pathname = usePathname();
-  const router = useRouter();
-  const [searchText, setSearchText] = useState('');
   const { products } = useProductCatalog();
   const { t } = useLanguage();
   const { role } = useAuth();
@@ -47,12 +46,6 @@ export default function Navbar({
 
   const closeMobile = () => setIsMobileOpen(false);
 
-  const submitSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = searchText.trim();
-    router.push(q ? `/tim-kiem?q=${encodeURIComponent(q)}` : '/tim-kiem');
-    closeMobile();
-  };
 
   const cartBadge = cartCount > 0 ? (
     <span
@@ -160,19 +153,9 @@ export default function Navbar({
         </div>
 
         {!isStaff && (
-          <form role="search" onSubmit={submitSearch} className="px-5 pt-4 shrink-0">
-            <div className="relative">
-              <Search size={14} strokeWidth={2} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
-              <input
-                type="search"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                placeholder={t('nav.searchPlaceholder')}
-                aria-label={t('nav.search')}
-                className="input-field w-full pl-9 pr-3 py-2.5 text-xs rounded-full"
-              />
-            </div>
-          </form>
+          <div className="px-5 pt-4 shrink-0">
+            <SearchBox onNavigate={closeMobile} />
+          </div>
         )}
 
         {/* Shoppers see the category list; staff see their back-office menu instead. */}

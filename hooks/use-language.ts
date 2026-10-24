@@ -28,7 +28,14 @@ export function useLanguage() {
     listeners.forEach(l => l());
   }, []);
 
-  const t = useCallback((key: DictionaryKey) => DICTIONARY[language][key], [language]);
+  // t('card.inStock', { n: 5 }) → "Còn 5 sản phẩm": {name} placeholders are filled from params.
+  const t = useCallback(
+    (key: DictionaryKey, params?: Record<string, string | number>) => {
+      const text = DICTIONARY[language][key];
+      return params ? text.replace(/\{(\w+)\}/g, (m, name: string) => (name in params ? String(params[name]) : m)) : text;
+    },
+    [language],
+  );
 
   return { language, setLanguage, t };
 }

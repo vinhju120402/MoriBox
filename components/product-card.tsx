@@ -5,6 +5,7 @@ import { Heart, Plus, ShoppingBag } from 'lucide-react';
 import ProductImage from './product-image';
 import { Stars } from './star-rating';
 import { useProductRatings } from '../hooks/use-product-ratings';
+import { useLanguage } from '../hooks/use-language';
 import { Product } from '../app/data/products';
 
 const getGradeCls = (grade: string) => {
@@ -33,6 +34,7 @@ export default function ProductCard({ product, isLiked, onToggleLike, onQuickAdd
   // so its `.stock` is the current figure — no separate lookup needed.
   const stock = product.stock;
   const rating = useProductRatings()[product.id];
+  const { t } = useLanguage();
   const outOfStock = stock === 0;
 
   return (
@@ -46,8 +48,8 @@ export default function ProductCard({ product, isLiked, onToggleLike, onQuickAdd
           <button
             onClick={() => onToggleLike(product.id)}
             className={`like-btn cursor-pointer p-1 rounded-full${isLiked ? ' is-liked' : ''}`}
-            aria-label={isLiked ? 'Bỏ yêu thích' : 'Yêu thích sản phẩm'}
-            title={isLiked ? 'Bỏ yêu thích' : 'Yêu thích sản phẩm'}
+            aria-label={isLiked ? t('card.unlike') : t('card.like')}
+            title={isLiked ? t('card.unlike') : t('card.like')}
           >
             <Heart size={15} strokeWidth={2} fill={isLiked ? 'currentColor' : 'none'} />
           </button>
@@ -62,7 +64,7 @@ export default function ProductCard({ product, isLiked, onToggleLike, onQuickAdd
                 className="absolute top-2 right-2 z-10 px-2.5 py-1 rounded-full text-[10px] font-bold"
                 style={{ background: 'var(--danger)', color: '#fff' }}
               >
-                Hết hàng
+                {t('card.outOfStock')}
               </span>
             )}
             {product.salePrice != null && !outOfStock && (
@@ -78,7 +80,7 @@ export default function ProductCard({ product, isLiked, onToggleLike, onQuickAdd
                 className="absolute top-2 left-2 z-10 px-2.5 py-1 rounded-full text-[10px] font-bold"
                 style={{ background: 'var(--accent)', color: '#fff' }}
               >
-                Mới
+                {t('card.new')}
               </span>
             )}
             {product.salePrice == null && product.isBestSeller && !outOfStock && !product.isNew && (
@@ -86,7 +88,7 @@ export default function ProductCard({ product, isLiked, onToggleLike, onQuickAdd
                 className="absolute top-2 left-2 z-10 px-2.5 py-1 rounded-full text-[10px] font-bold"
                 style={{ background: 'var(--text-primary)', color: 'var(--bg-base)' }}
               >
-                Bán chạy
+                {t('card.bestSeller')}
               </span>
             )}
             <ProductImage
@@ -118,7 +120,7 @@ export default function ProductCard({ product, isLiked, onToggleLike, onQuickAdd
           <div className="mt-3 flex flex-wrap gap-1">
             {[
               `${product.specs.height}`,
-              `${product.specs.partsCount} mảnh`,
+              t('card.parts', { n: product.specs.partsCount }),
               product.specs.difficulty,
             ].map(chip => (
               <span
@@ -138,7 +140,7 @@ export default function ProductCard({ product, isLiked, onToggleLike, onQuickAdd
         {/* Price + Actions */}
         <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
           <div className="flex items-baseline justify-between mb-1">
-            <span className="text-[10px] font-medium" style={{ color: 'var(--text-secondary)' }}>Giá bán</span>
+            <span className="text-[10px] font-medium" style={{ color: 'var(--text-secondary)' }}>{t('card.price')}</span>
             {product.salePrice != null ? (
               <span className="flex items-baseline gap-1.5">
                 <span className="text-[11px] font-medium line-through" style={{ color: 'var(--text-muted)' }}>
@@ -159,7 +161,7 @@ export default function ProductCard({ product, isLiked, onToggleLike, onQuickAdd
             className="text-[10px] font-medium mb-3"
             style={{ color: outOfStock || stock <= 5 ? 'var(--danger)' : 'var(--text-muted)' }}
           >
-            {outOfStock ? 'Hết hàng' : `Còn ${stock} sản phẩm`}
+            {outOfStock ? t('card.outOfStock') : t('card.inStock', { n: stock })}
           </p>
 
           <div className="grid grid-cols-2 gap-2">
@@ -167,17 +169,17 @@ export default function ProductCard({ product, isLiked, onToggleLike, onQuickAdd
               onClick={() => onQuickAdd(product)}
               disabled={outOfStock}
               className="btn-outline py-2 px-2 text-[11px] font-semibold cursor-pointer flex items-center justify-center gap-1"
-              title={outOfStock ? 'Sản phẩm tạm hết hàng' : 'Thêm vào giỏ hàng'}
+              title={outOfStock ? t('card.soldOutTitle') : t('card.addToCartTitle')}
             >
-              <Plus size={12} strokeWidth={2} /> Thêm vào giỏ
+              <Plus size={12} strokeWidth={2} /> {t('card.addToCart')}
             </button>
             <button
               onClick={() => onAddToCart(product)}
               disabled={outOfStock}
               className="btn-primary py-2 px-2 text-[11px] font-semibold cursor-pointer flex items-center justify-center gap-1"
-              title={outOfStock ? 'Sản phẩm tạm hết hàng' : undefined}
+              title={outOfStock ? t('card.soldOutTitle') : undefined}
             >
-              <ShoppingBag size={12} strokeWidth={2} /> Mua ngay
+              <ShoppingBag size={12} strokeWidth={2} /> {t('card.buyNow')}
             </button>
           </div>
         </div>

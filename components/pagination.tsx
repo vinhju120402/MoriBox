@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useLanguage } from '../hooks/use-language';
 
 export const PAGE_SIZE = 20;
 
@@ -21,13 +22,14 @@ export default function Pagination({
   size?: number;
   onChange: (page: number) => void;
 }) {
+  const { t } = useLanguage();
   const pages = Math.max(1, Math.ceil(total / size));
   if (total <= size) return null;
   const from = (page - 1) * size + 1;
   const to = Math.min(page * size, total);
 
   return (
-    <nav className="flex items-center justify-between gap-3 px-4 py-3 print:hidden" aria-label="Phân trang" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+    <nav className="flex items-center justify-between gap-3 px-4 py-3 print:hidden" aria-label={t('pager.label')} style={{ borderTop: '1px solid var(--border-subtle)' }}>
       <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
         {from}–{to} / {total}
       </p>
@@ -35,7 +37,7 @@ export default function Pagination({
         <button
           onClick={() => onChange(page - 1)}
           disabled={page <= 1}
-          aria-label="Trang trước"
+          aria-label={t('pager.prev')}
           className="btn-outline p-1.5 cursor-pointer"
         >
           <ChevronLeft size={14} strokeWidth={2} />
@@ -46,7 +48,7 @@ export default function Pagination({
         <button
           onClick={() => onChange(page + 1)}
           disabled={page >= pages}
-          aria-label="Trang sau"
+          aria-label={t('pager.next')}
           className="btn-outline p-1.5 cursor-pointer"
         >
           <ChevronRight size={14} strokeWidth={2} />

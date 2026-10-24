@@ -12,6 +12,7 @@ import ProductReviews from '../../../components/product-reviews';
 import SiteFooter from '../../../components/site-footer';
 import { useGatedCart } from '../../../hooks/use-gated-cart';
 import { useProductCatalog } from '../../../hooks/use-product-catalog';
+import { useLanguage } from '../../../hooks/use-language';
 import { GRADE_CATEGORIES } from '../../data/products';
 
 const getGradeCls = (grade: string) => {
@@ -53,6 +54,7 @@ export default function ProductDetailPage() {
     user,
     logout,
   } = useGatedCart();
+  const { t } = useLanguage();
 
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState<string | undefined>(product?.image);
@@ -82,12 +84,12 @@ export default function ProductDetailPage() {
   const similarProducts = products.filter(p => p.id !== product.id && p.grade === product.grade).slice(0, 4);
 
   const specRows = [
-    { k: 'Grade', v: `${gradeFullName[product.grade] ?? product.grade} (${product.grade})` },
-    { k: 'Tỷ lệ', v: product.scale },
+    { k: 'Grade', v: `${product.grade === 'ACC' ? t('grade.acc') : (gradeFullName[product.grade] ?? product.grade)} (${product.grade})` },
+    { k: t('pdp.scale'), v: product.scale },
     { k: 'Series', v: product.series },
-    { k: 'Chiều cao', v: product.specs.height },
-    { k: 'Số mảnh', v: `${product.specs.partsCount} pcs` },
-    { k: 'Độ khó', v: product.specs.difficulty },
+    { k: t('pdp.height'), v: product.specs.height },
+    { k: t('pdp.parts'), v: `${product.specs.partsCount} pcs` },
+    { k: t('pdp.difficulty'), v: product.specs.difficulty },
   ];
 
   return (
@@ -106,7 +108,7 @@ export default function ProductDetailPage() {
         <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 w-full">
           {/* Breadcrumb */}
           <nav className="flex items-center gap-1.5 text-xs mb-6" style={{ color: 'var(--text-secondary)' }} aria-label="Breadcrumb">
-            <Link href="/" className="link-fade">Trang chủ</Link>
+            <Link href="/" className="link-fade">{t('common.home')}</Link>
             <ChevronRight size={12} strokeWidth={2} />
             <Link href={`/danh-muc/${product.grade.toLowerCase()}`} className="link-fade">{product.grade} · {product.series}</Link>
             <ChevronRight size={12} strokeWidth={2} />
@@ -123,7 +125,7 @@ export default function ProductDetailPage() {
                     className="absolute top-4 right-4 z-10 px-3 py-1.5 rounded-full text-xs font-bold"
                     style={{ background: 'var(--danger)', color: '#fff' }}
                   >
-                    Hết hàng
+                    {t('card.outOfStock')}
                   </span>
                 )}
                 {product.isNew && !outOfStock && (
@@ -131,7 +133,7 @@ export default function ProductDetailPage() {
                     className="absolute top-4 left-4 z-10 px-3 py-1.5 rounded-full text-xs font-bold"
                     style={{ background: 'var(--accent)', color: '#fff' }}
                   >
-                    Mới
+                    {t('card.new')}
                   </span>
                 )}
                 {product.isBestSeller && !outOfStock && !product.isNew && (
@@ -139,7 +141,7 @@ export default function ProductDetailPage() {
                     className="absolute top-4 left-4 z-10 px-3 py-1.5 rounded-full text-xs font-bold"
                     style={{ background: 'var(--text-primary)', color: '#fff' }}
                   >
-                    Bán chạy
+                    {t('card.bestSeller')}
                   </span>
                 )}
                 <ProductImage
@@ -158,11 +160,11 @@ export default function ProductDetailPage() {
                     <button
                       key={i}
                       onClick={() => setActiveImage(src)}
-                      aria-label={`Xem ảnh ${i + 1}`}
+                      aria-label={t('pdp.viewImage', { n: i + 1 })}
                       className="media-well relative w-16 h-16 shrink-0 rounded-xl overflow-hidden p-1.5 cursor-pointer"
                       style={{ border: (activeImage ?? product.image) === src ? '2px solid var(--accent)' : '1px solid var(--border-subtle)' }}
                     >
-                      <ProductImage src={src} alt={`${product.name} - ảnh ${i + 1}`} imgClassName="object-contain" iconSize={14} compact sizes="64px" />
+                      <ProductImage src={src} alt={t('pdp.imageAlt', { name: product.name, n: i + 1 })} imgClassName="object-contain" iconSize={14} compact sizes="64px" />
                     </button>
                   ))}
                 </div>
@@ -178,8 +180,8 @@ export default function ProductDetailPage() {
                 <button
                   onClick={() => toggleLike(product.id)}
                   className={`like-btn cursor-pointer p-1.5 rounded-full${isLiked ? ' is-liked' : ''}`}
-                  aria-label={isLiked ? 'Bỏ yêu thích' : 'Yêu thích sản phẩm'}
-                  title={isLiked ? 'Bỏ yêu thích' : 'Yêu thích sản phẩm'}
+                  aria-label={isLiked ? t('card.unlike') : t('card.like')}
+                  title={isLiked ? t('card.unlike') : t('card.like')}
                 >
                   <Heart size={18} strokeWidth={2} fill={isLiked ? 'currentColor' : 'none'} />
                 </button>
@@ -197,7 +199,7 @@ export default function ProductDetailPage() {
               </p>
 
               <div className="mt-6 pt-6" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Giá bán</span>
+                <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{t('card.price')}</span>
                 {product.salePrice != null ? (
                   <div className="flex items-baseline gap-3 mt-1">
                     <span className="text-3xl font-bold font-display" style={{ color: '#dc2626' }}>
@@ -219,7 +221,7 @@ export default function ProductDetailPage() {
                   </div>
                 )}
                 <p className="text-xs mt-1" style={{ color: outOfStock ? 'var(--danger)' : 'var(--text-secondary)' }}>
-                  {outOfStock ? 'Tạm hết hàng' : `Còn ${stock} sản phẩm`}
+                  {outOfStock ? t('pdp.soldOut') : t('card.inStock', { n: stock })}
                 </p>
               </div>
 
@@ -233,7 +235,7 @@ export default function ProductDetailPage() {
                     onClick={() => setQuantity(q => Math.max(1, q - 1))}
                     disabled={outOfStock || quantity <= 1}
                     className="qty-btn cursor-pointer p-3"
-                    aria-label="Giảm số lượng"
+                    aria-label={t('pdp.qtyDown')}
                   >
                     <Minus size={14} strokeWidth={2} />
                   </button>
@@ -244,7 +246,7 @@ export default function ProductDetailPage() {
                     onClick={() => setQuantity(q => Math.min(stock, q + 1))}
                     disabled={outOfStock || quantity >= stock}
                     className="qty-btn cursor-pointer p-3"
-                    aria-label="Tăng số lượng"
+                    aria-label={t('pdp.qtyUp')}
                   >
                     <Plus size={14} strokeWidth={2} />
                   </button>
@@ -255,23 +257,23 @@ export default function ProductDetailPage() {
                   disabled={outOfStock}
                   className="btn-outline flex-1 py-3 px-4 text-sm font-semibold cursor-pointer flex items-center justify-center gap-2"
                 >
-                  <Plus size={16} strokeWidth={2} /> Thêm vào giỏ
+                  <Plus size={16} strokeWidth={2} /> {t('card.addToCart')}
                 </button>
                 <button
                   onClick={() => handleAddToCart(product, quantity)}
                   disabled={outOfStock}
                   className="btn-primary flex-1 py-3 px-4 text-sm font-semibold cursor-pointer flex items-center justify-center gap-2"
                 >
-                  <ShoppingBag size={16} strokeWidth={2} /> Mua ngay
+                  <ShoppingBag size={16} strokeWidth={2} /> {t('card.buyNow')}
                 </button>
               </div>
 
               {/* Trust mini strip */}
               <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2">
                 {[
-                  { icon: <ShieldCheck size={14} strokeWidth={2} />, label: 'Chính hãng Bandai' },
-                  { icon: <Truck size={14} strokeWidth={2} />, label: 'Giao hàng toàn quốc' },
-                  { icon: <RotateCcw size={14} strokeWidth={2} />, label: 'Đổi trả 7 ngày' },
+                  { icon: <ShieldCheck size={14} strokeWidth={2} />, label: t('home.trust.genuine') },
+                  { icon: <Truck size={14} strokeWidth={2} />, label: t('home.trust.shipping') },
+                  { icon: <RotateCcw size={14} strokeWidth={2} />, label: t('pdp.returns') },
                 ].map(item => (
                   <div key={item.label} className="flex items-center gap-1.5">
                     <span style={{ color: 'var(--accent)' }}>{item.icon}</span>
@@ -285,7 +287,7 @@ export default function ProductDetailPage() {
           {/* Specs */}
           <div className="mt-10 md:mt-12">
             <h2 className="text-lg font-bold tracking-tight font-display mb-6" style={{ color: 'var(--text-primary)' }}>
-              Thông số kỹ thuật
+              {t('pdp.specs')}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {specRows.map(row => (
@@ -302,7 +304,7 @@ export default function ProductDetailPage() {
 
             {product.specs.weaponList.length > 0 && (
               <div className="mt-4">
-                <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Phụ kiện đi kèm</p>
+                <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>{t('pdp.accessories')}</p>
                 <div className="flex flex-wrap gap-2">
                   {product.specs.weaponList.map(w => (
                     <span
@@ -324,7 +326,7 @@ export default function ProductDetailPage() {
           {relatedProducts.length > 0 && (
             <div className="mt-10 md:mt-12">
               <h2 className="text-lg font-bold tracking-tight font-display mb-6" style={{ color: 'var(--text-primary)' }}>
-                Sản phẩm cùng series
+                {t('pdp.related')}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 {relatedProducts.map(p => (
@@ -345,7 +347,7 @@ export default function ProductDetailPage() {
           {similarProducts.length > 0 && (
             <div className="mt-10 md:mt-12">
               <h2 className="text-lg font-bold tracking-tight font-display mb-6" style={{ color: 'var(--text-primary)' }}>
-                Sản phẩm tương tự
+                {t('pdp.similar')}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 {similarProducts.map(p => (

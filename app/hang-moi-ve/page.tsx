@@ -9,6 +9,7 @@ import SiteFooter from '../../components/site-footer';
 import PromoBanner from '../../components/promo-banner';
 import { useGatedCart } from '../../hooks/use-gated-cart';
 import { useProductCatalog } from '../../hooks/use-product-catalog';
+import { useLanguage } from '../../hooks/use-language';
 import { GRADE_CATEGORIES } from '../data/products';
 
 export default function NewArrivalsPage() {
@@ -29,6 +30,7 @@ export default function NewArrivalsPage() {
     logout,
   } = useGatedCart();
   const { products } = useProductCatalog();
+  const { t } = useLanguage();
 
 
   const newArrivals = products.filter(p => p.isNew);
@@ -49,17 +51,17 @@ export default function NewArrivalsPage() {
         <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 w-full">
           {/* Breadcrumb */}
           <nav className="flex items-center gap-1.5 text-xs mb-6" style={{ color: 'var(--text-secondary)' }} aria-label="Breadcrumb">
-            <Link href="/" className="link-fade">Trang chủ</Link>
+            <Link href="/" className="link-fade">{t('common.home')}</Link>
             <ChevronRight size={12} strokeWidth={2} />
-            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Hàng mới về</span>
+            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{t('nav.newArrivals')}</span>
           </nav>
 
           {/* Header banner */}
           <div className="mb-8">
             <PromoBanner
-              eyebrow="Hàng mới về"
-              title="Mới về"
-              subtitle="Cập nhật mô hình mới mỗi tuần, số lượng có hạn."
+              eyebrow={t('home.new.eyebrow')}
+              title={t('home.new.title')}
+              subtitle={t('home.new.subtitle')}
               gradient="linear-gradient(120deg, #4c1d95 0%, #7c3aed 55%, #c026d3 100%)"
               glowColor="rgba(216,180,254,0.6)"
               images={[
@@ -67,7 +69,7 @@ export default function NewArrivalsPage() {
                 { src: '/images/unicorn.png', alt: 'Unicorn Gundam' },
                 { src: '/images/rx782.png', alt: 'RX-78-2 Gundam' },
               ]}
-              ctaLabel="Xem catalog"
+              ctaLabel={t('banner.seeCatalog')}
               ctaHref="/#catalog"
             />
           </div>
@@ -79,8 +81,8 @@ export default function NewArrivalsPage() {
             onQuickAdd={handleQuickAdd}
             onAddToCart={handleAddToCart}
             defaultSort="featured"
-            emptyTitle="Chưa có mô hình mới"
-            emptyHint="Quay lại sau, MoriBox cập nhật hàng thường xuyên."
+            emptyTitle={t('new.emptyTitle')}
+            emptyHint={t('catalog.emptyHint')}
           />
         </main>
 

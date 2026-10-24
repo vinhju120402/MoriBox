@@ -1335,6 +1335,32 @@ $$;
 revoke all on function public.delete_address(uuid) from public, anon;
 grant execute on function public.delete_address(uuid) to authenticated;
 
+-- ───────────────────────── Cart & wishlist sync ─────────────────────────
+-- Mirrors the browser's cart and liked products onto the account so they follow the
+-- customer to another phone or computer. Each person only ever sees their own rows.
+create table if not exists public.cart_items (
+  user_id     uuid not null references auth.users (id) on delete cascade,
+  product_id  text not null references public.products (id) on delete cascade,
+  quantity    integer not null check (quantity > 0 and quantity <= 99),
+  updated_at  timestamptz not null default now(),
+  primary key (user_id, product_id)
+);
+alter table public.cart_items enable row level security;
+drop policy if exists "cart_items: own" on public.cart_items;
+create policy "cart_items: own" on public.cart_items
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+create table if not exists public.wishlist_items (
+  user_id     uuid not null references auth.users (id) on delete cascade,
+  product_id  text not null references public.products (id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  primary key (user_id, product_id)
+);
+alter table public.wishlist_items enable row level security;
+drop policy if exists "wishlist_items: own" on public.wishlist_items;
+create policy "wishlist_items: own" on public.wishlist_items
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
 -- ───────────────────────── Allowlist: how to use ─────────────────────────
 -- 1) Add staff emails (lowercase) with a role - run separately, e.g.:
 --      insert into public.admin_emails (email, role) values

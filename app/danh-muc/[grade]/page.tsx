@@ -10,6 +10,7 @@ import GradeBanner from '../../../components/grade-banner';
 import SiteFooter from '../../../components/site-footer';
 import { useGatedCart } from '../../../hooks/use-gated-cart';
 import { useProductCatalog } from '../../../hooks/use-product-catalog';
+import { useLanguage } from '../../../hooks/use-language';
 import { GRADE_CATEGORIES, GRADE_INFO, GradeCode } from '../../data/products';
 
 const GRADE_ICONS: Record<GradeCode, React.ReactNode> = {
@@ -44,6 +45,7 @@ export default function GradeCategoryPage() {
     logout,
   } = useGatedCart();
   const { products } = useProductCatalog();
+  const { t } = useLanguage();
 
 
   if (!gradeInfo) {
@@ -68,9 +70,9 @@ export default function GradeCategoryPage() {
         <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 w-full">
           {/* Breadcrumb */}
           <nav className="flex items-center gap-1.5 text-xs mb-6" style={{ color: 'var(--text-secondary)' }} aria-label="Breadcrumb">
-            <Link href="/" className="link-fade">Trang chủ</Link>
+            <Link href="/" className="link-fade">{t('common.home')}</Link>
             <ChevronRight size={12} strokeWidth={2} />
-            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Danh mục</span>
+            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{t('nav.categories')}</span>
             <ChevronRight size={12} strokeWidth={2} />
             <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{gradeInfo.label} ({code})</span>
           </nav>
@@ -85,8 +87,8 @@ export default function GradeCategoryPage() {
             onQuickAdd={handleQuickAdd}
             onAddToCart={handleAddToCart}
             defaultSort="featured"
-            emptyTitle="Chưa có mô hình nào ở cấp độ này"
-            emptyHint="Quay lại sau, MoriBox cập nhật hàng thường xuyên."
+            emptyTitle={t('catalog.emptyGrade')}
+            emptyHint={t('catalog.emptyHint')}
           />
         </main>
 

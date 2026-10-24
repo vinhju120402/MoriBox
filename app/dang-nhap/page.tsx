@@ -7,10 +7,12 @@ import { useRouter } from 'next/navigation';
 import { Boxes, Mail, Lock, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../hooks/use-auth';
 import Starfield from '../../components/starfield';
+import { useLanguage } from '../../hooks/use-language';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, verifyMfa } = useAuth();
+  const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -40,13 +42,13 @@ export default function LoginPage() {
     } else if (err === 'mfa_required') {
       setMfaStep(true);
     } else if (err === 'disabled') {
-      setError('Tài khoản này đã bị khóa. Vui lòng liên hệ cửa hàng.');
+      setError(t('auth.err.disabled'));
     } else if (err === 'email_not_confirmed') {
-      setError('Email chưa được xác nhận. Vui lòng kiểm tra hộp thư của bạn.');
+      setError(t('auth.err.notConfirmed'));
     } else if (err === 'invalid_credentials') {
-      setError('Email hoặc mật khẩu không đúng.');
+      setError(t('auth.err.invalid'));
     } else {
-      setError('Không thể đăng nhập lúc này. Vui lòng thử lại.');
+      setError(t('auth.err.generic'));
     }
   };
 
@@ -59,9 +61,9 @@ export default function LoginPage() {
     if (!err) {
       router.push(redirectTo);
     } else if (err === 'invalid_code') {
-      setError('Mã không đúng hoặc đã hết hạn. Vui lòng thử lại.');
+      setError(t('auth.err.badCode'));
     } else {
-      setError('Không thể xác thực lúc này. Vui lòng thử lại.');
+      setError(t('auth.err.mfaGeneric'));
     }
   };
 
@@ -149,12 +151,12 @@ export default function LoginPage() {
             }}
           >
             <h1 className="text-lg font-bold font-display text-center text-white">
-              {mfaStep ? 'Xác thực hai bước' : 'Đăng nhập'}
+              {mfaStep ? t('auth.mfa.title') : t('auth.login.title')}
             </h1>
             <p className="text-xs text-center mt-1.5" style={{ color: 'rgba(255,255,255,0.7)' }}>
               {mfaStep
-                ? 'Nhập mã 6 số trong ứng dụng xác thực (Google Authenticator, Authy…).'
-                : 'Cần đăng nhập để thêm vào giỏ hoặc mua hàng.'}
+                ? t('auth.mfa.subtitle')
+                : t('auth.login.subtitle')}
             </p>
 
             {error && (
@@ -167,7 +169,7 @@ export default function LoginPage() {
             {mfaStep ? (
               <form onSubmit={handleMfa} className="mt-6 space-y-4">
                 <div>
-                  <label htmlFor="mfa-code" className="block text-xs font-semibold mb-1.5 text-white">Mã xác thực</label>
+                  <label htmlFor="mfa-code" className="block text-xs font-semibold mb-1.5 text-white">{t('auth.mfa.codeLabel')}</label>
                   <input
                     id="mfa-code"
                     inputMode="numeric"
@@ -184,7 +186,7 @@ export default function LoginPage() {
                   />
                 </div>
                 <button type="submit" disabled={submitting || code.length < 6} className="btn-primary w-full py-2.5 text-sm font-semibold cursor-pointer">
-                  {submitting ? 'Đang xử lý…' : 'Xác nhận'}
+                  {submitting ? t('common.processing') : t('auth.confirm')}
                 </button>
                 <button
                   type="button"
@@ -192,7 +194,7 @@ export default function LoginPage() {
                   className="w-full text-xs font-medium cursor-pointer"
                   style={{ color: 'rgba(255,255,255,0.7)' }}
                 >
-                  Quay lại
+                  {t('auth.back')}
                 </button>
               </form>
             ) : (
@@ -221,10 +223,10 @@ export default function LoginPage() {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label htmlFor="password" className="block text-xs font-semibold text-white">
-                    Mật khẩu
+                    {t('auth.password')}
                   </label>
                   <Link href="/quen-mat-khau" className="text-[11px] font-semibold" style={{ color: '#fdba74' }}>
-                    Quên mật khẩu?
+                    {t('forgot.link')}
                   </Link>
                 </div>
                 <div className="relative">
@@ -249,22 +251,22 @@ export default function LoginPage() {
                 disabled={submitting}
                 className="btn-primary w-full py-2.5 text-sm font-semibold cursor-pointer"
               >
-                {submitting ? 'Đang xử lý…' : 'Đăng nhập'}
+                {submitting ? t('common.processing') : t('common.login')}
               </button>
             </form>
             )}
 
             <p className="text-xs text-center mt-6" style={{ color: 'rgba(255,255,255,0.7)' }}>
-              Chưa có tài khoản?{' '}
+              {t('auth.noAccount')}{' '}
               <Link href={`/dang-ky?redirect=${encodeURIComponent(redirectTo)}`} className="font-semibold" style={{ color: '#fdba74' }}>
-                Đăng ký ngay
+                {t('auth.signUpNow')}
               </Link>
             </p>
           </div>
         </div>
 
         <p className="text-xs text-center mt-6">
-          <Link href="/" className="font-medium" style={{ color: 'rgba(255,255,255,0.65)' }}>Về trang chủ</Link>
+          <Link href="/" className="font-medium" style={{ color: 'rgba(255,255,255,0.65)' }}>{t('common.backHome')}</Link>
         </p>
       </div>
     </div>

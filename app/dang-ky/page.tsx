@@ -7,10 +7,12 @@ import { useRouter } from 'next/navigation';
 import { Boxes, Mail, Lock, User, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../hooks/use-auth';
 import Starfield from '../../components/starfield';
+import { useLanguage } from '../../hooks/use-language';
 
 export default function RegisterPage() {
   const router = useRouter();
   const { register } = useAuth();
+  const { t } = useLanguage();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,13 +40,13 @@ export default function RegisterPage() {
     if (result === 'ok') {
       router.push(redirectTo);
     } else if (result === 'confirm') {
-      setNotice('Đã gửi email xác nhận. Vui lòng mở hộp thư và bấm vào liên kết để hoàn tất đăng ký.');
+      setNotice(t('auth.notice.confirmSent'));
     } else if (result === 'exists') {
-      setError('Email này đã có tài khoản. Vui lòng đăng nhập.');
+      setError(t('auth.err.exists'));
     } else if (result === 'weak_password') {
-      setError('Mật khẩu chưa đủ mạnh (tối thiểu 6 ký tự).');
+      setError(t('auth.err.weak'));
     } else {
-      setError('Không thể đăng ký lúc này. Vui lòng thử lại.');
+      setError(t('auth.err.register'));
     }
   };
 
@@ -132,10 +134,10 @@ export default function RegisterPage() {
             }}
           >
             <h1 className="text-lg font-bold font-display text-center text-white">
-              Tạo tài khoản
+              {t('auth.register.title')}
             </h1>
             <p className="text-xs text-center mt-1.5" style={{ color: 'rgba(255,255,255,0.7)' }}>
-              Tạo tài khoản để mua sắm nhanh hơn trong lần sau.
+              {t('auth.register.subtitle')}
             </p>
 
             {notice && (
@@ -154,7 +156,7 @@ export default function RegisterPage() {
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <div>
                 <label htmlFor="name" className="block text-xs font-semibold mb-1.5 text-white">
-                  Họ và tên
+                  {t('auth.fullName')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none" style={{ color: 'rgba(255,255,255,0.5)' }}>
@@ -166,7 +168,7 @@ export default function RegisterPage() {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Nguyễn Văn A"
+                    placeholder={t('auth.namePlaceholder')}
                     className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl text-white placeholder:text-white/40 focus:outline-none"
                     style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)' }}
                   />
@@ -196,7 +198,7 @@ export default function RegisterPage() {
 
               <div>
                 <label htmlFor="password" className="block text-xs font-semibold mb-1.5 text-white">
-                  Mật khẩu
+                  {t('auth.password')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none" style={{ color: 'rgba(255,255,255,0.5)' }}>
@@ -209,7 +211,7 @@ export default function RegisterPage() {
                     minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Tối thiểu 6 ký tự"
+                    placeholder={t('auth.passwordHint')}
                     className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl text-white placeholder:text-white/40 focus:outline-none"
                     style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)' }}
                   />
@@ -221,21 +223,21 @@ export default function RegisterPage() {
                 disabled={submitting}
                 className="btn-primary w-full py-2.5 text-sm font-semibold cursor-pointer"
               >
-                {submitting ? 'Đang xử lý…' : 'Đăng ký'}
+                {submitting ? t('common.processing') : t('common.register')}
               </button>
             </form>
 
             <p className="text-xs text-center mt-6" style={{ color: 'rgba(255,255,255,0.7)' }}>
-              Đã có tài khoản?{' '}
+              {t('auth.hasAccount')}{' '}
               <Link href={`/dang-nhap?redirect=${encodeURIComponent(redirectTo)}`} className="font-semibold" style={{ color: '#5eead4' }}>
-                Đăng nhập
+                {t('common.login')}
               </Link>
             </p>
           </div>
         </div>
 
         <p className="text-xs text-center mt-6">
-          <Link href="/" className="font-medium" style={{ color: 'rgba(255,255,255,0.65)' }}>Về trang chủ</Link>
+          <Link href="/" className="font-medium" style={{ color: 'rgba(255,255,255,0.65)' }}>{t('common.backHome')}</Link>
         </p>
       </div>
     </div>

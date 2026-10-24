@@ -6,7 +6,8 @@ Cửa hàng mô hình Gunpla (Gundam) bằng Next.js 16, dữ liệu và đăng 
 
 **Khách hàng**
 - Danh mục theo hạng (PG, MG, RG, HG, EG, SD), trang chi tiết sản phẩm, Flash Sale, hàng mới về, bán chạy
-- Tìm kiếm không cần gõ dấu, bộ lọc (khoảng giá, series, còn hàng, đang giảm giá), trang Yêu thích
+- Tìm kiếm không cần gõ dấu với gợi ý ngay khi gõ, bộ lọc (khoảng giá, cấp độ, series, còn hàng, đang giảm giá), trang Yêu thích
+- Giỏ hàng và yêu thích đồng bộ theo tài khoản, đổi máy vẫn còn (khách chưa đăng nhập lưu trong trình duyệt)
 - Đánh giá sao và nhận xét (chỉ khách đã nhận hàng), sổ địa chỉ giao hàng, mua lại đơn cũ, dòng thời gian trạng thái đơn
 - Giỏ hàng, mã giảm giá, thanh toán COD hoặc chuyển khoản QR (VietQR)
 - **Đơn hàng của tôi** với các tab trạng thái, tự hủy đơn chưa thanh toán, yêu cầu hủy và hoàn tiền
@@ -59,7 +60,7 @@ npm run dev
 
 - Cổng thanh toán MoMo, ZaloPay, VNPay, thẻ (cần tài khoản thương nhân và code phía server nhận callback)
 - Tự đối soát chuyển khoản (cần dịch vụ như SePay hoặc Casso), thông báo qua email hoặc Telegram
-- Giỏ hàng và yêu thích vẫn lưu trong trình duyệt, không đồng bộ giữa thiết bị
+- Giao diện tiếng Anh mới phủ cửa hàng (đăng nhập, danh mục, sản phẩm, tìm kiếm, yêu thích); giỏ hàng, thanh toán, đơn hàng và trang quản trị vẫn chỉ có tiếng Việt
 
 ## Lệnh
 

@@ -1,6 +1,9 @@
+'use client';
+
 import Image from 'next/image';
 import { Ruler, Puzzle, Gauge } from 'lucide-react';
 import { GradeCode, GradeInfo, Product } from '../app/data/products';
+import { useLanguage } from '../hooks/use-language';
 
 const GRADE_THEME: Record<GradeCode, { gradient: string; glow: string }> = {
   PG: { gradient: 'linear-gradient(120deg, #7c2d12 0%, #c2410c 55%, #f97316 100%)', glow: 'rgba(253,186,116,0.6)' },
@@ -27,6 +30,7 @@ interface GradeBannerProps {
 
 export default function GradeBanner({ code, icon, gradeInfo, products }: GradeBannerProps) {
   const theme = GRADE_THEME[code];
+  const { t } = useLanguage();
 
   return (
     <div
@@ -68,8 +72,8 @@ export default function GradeBanner({ code, icon, gradeInfo, products }: GradeBa
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-5">
             {[
               { key: 'scale', icon: <Ruler size={12} strokeWidth={2} />, label: gradeInfo.scale },
-              { key: 'parts', icon: <Puzzle size={12} strokeWidth={2} />, label: code === 'ACC' ? gradeInfo.parts : `${gradeInfo.parts} mảnh` },
-              { key: 'diff', icon: <Gauge size={12} strokeWidth={2} />, label: `Độ khó: ${gradeInfo.diff}` },
+              { key: 'parts', icon: <Puzzle size={12} strokeWidth={2} />, label: code === 'ACC' ? gradeInfo.parts : t('banner.parts', { n: gradeInfo.parts }) },
+              { key: 'diff', icon: <Gauge size={12} strokeWidth={2} />, label: t('banner.difficulty', { d: gradeInfo.diff }) },
             ].map((s) => (
               <span
                 key={s.key}
