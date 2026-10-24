@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { ShoppingCart, Boxes, Menu, X, User, LogOut, Zap, Settings, Package } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { ShoppingCart, Boxes, Menu, X, User, LogOut, Zap, Settings, Package, Search, Heart } from 'lucide-react';
 import { CategoryLink } from '../app/data/products';
 import { useProductCatalog } from '../hooks/use-product-catalog';
 import { useLanguage } from '../hooks/use-language';
@@ -34,6 +34,8 @@ export default function Navbar({
 }: NavbarProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const [searchText, setSearchText] = useState('');
   const { products } = useProductCatalog();
   const { t } = useLanguage();
   const { role } = useAuth();
@@ -44,6 +46,13 @@ export default function Navbar({
   const bestSellersCount = products.filter(p => p.isBestSeller).length;
 
   const closeMobile = () => setIsMobileOpen(false);
+
+  const submitSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchText.trim();
+    router.push(q ? `/tim-kiem?q=${encodeURIComponent(q)}` : '/tim-kiem');
+    closeMobile();
+  };
 
   const cartBadge = cartCount > 0 ? (
     <span
@@ -89,6 +98,10 @@ export default function Navbar({
         {isStaff ? (
           <span className="w-9" aria-hidden="true" />
         ) : (
+          <div className="flex items-center gap-2">
+          <Link href="/tim-kiem" aria-label={t('nav.search')} className="nav-pill p-2 cursor-pointer">
+            <Search size={17} strokeWidth={2} />
+          </Link>
           <button
             onClick={onCartClick}
             aria-label={t('nav.cart')}
@@ -97,6 +110,7 @@ export default function Navbar({
             <ShoppingCart size={17} strokeWidth={2} />
             {cartBadge}
           </button>
+          </div>
         )}
       </header>
 
@@ -144,6 +158,22 @@ export default function Navbar({
             <X size={18} strokeWidth={2} />
           </button>
         </div>
+
+        {!isStaff && (
+          <form role="search" onSubmit={submitSearch} className="px-5 pt-4 shrink-0">
+            <div className="relative">
+              <Search size={14} strokeWidth={2} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
+              <input
+                type="search"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder={t('nav.searchPlaceholder')}
+                aria-label={t('nav.search')}
+                className="input-field w-full pl-9 pr-3 py-2.5 text-xs rounded-full"
+              />
+            </div>
+          </form>
+        )}
 
         {/* Shoppers see the category list; staff see their back-office menu instead. */}
         <nav className="flex-1 overflow-y-auto px-5 py-5 space-y-1.5">
@@ -279,6 +309,17 @@ export default function Navbar({
               <span>{t('nav.cart')}</span>
               {cartBadge}
             </button>
+          )}
+          {!isStaff && (
+            <Link
+              href="/yeu-thich"
+              onClick={closeMobile}
+              className="btn-ghost w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold cursor-pointer"
+              style={{ border: '1px solid var(--border-subtle)' }}
+            >
+              <Heart size={15} strokeWidth={2} />
+              <span>{t('nav.wishlist')}</span>
+            </Link>
           )}
           {isLoggedIn && !isStaff && (
             <Link

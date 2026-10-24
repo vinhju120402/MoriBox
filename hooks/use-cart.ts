@@ -94,6 +94,7 @@ export function useCart() {
     isCartOpen,
     setIsCartOpen,
     likedProducts,
+    likesLoaded: hasLoaded,
     handleAddToCart,
     handleQuickAdd,
     handleUpdateQuantity,

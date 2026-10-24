@@ -1,11 +1,10 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import Navbar from '../../components/navbar';
 import CartDrawer from '../../components/cart-drawer';
-import ProductCard from '../../components/product-card';
+import ProductListing from '../../components/product-listing';
 import SiteFooter from '../../components/site-footer';
 import PromoBanner from '../../components/promo-banner';
 import { useGatedCart } from '../../hooks/use-gated-cart';
@@ -31,19 +30,8 @@ export default function FlashSalePage() {
   } = useGatedCart();
   const { products } = useProductCatalog();
 
-  const [sortBy, setSortBy] = useState('discount');
 
   const flashSaleProducts = products.filter(p => p.salePrice != null);
-  const sortedProducts = [...flashSaleProducts].sort((a, b) => {
-    if (sortBy === 'price-asc') return (a.salePrice ?? a.price) - (b.salePrice ?? b.price);
-    if (sortBy === 'price-desc') return (b.salePrice ?? b.price) - (a.salePrice ?? a.price);
-    if (sortBy === 'discount') {
-      const discA = 1 - (a.salePrice ?? a.price) / a.price;
-      const discB = 1 - (b.salePrice ?? b.price) / b.price;
-      return discB - discA;
-    }
-    return 0;
-  });
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-base)' }}>
@@ -84,49 +72,17 @@ export default function FlashSalePage() {
             />
           </div>
 
-          {/* Toolbar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-            <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-              {sortedProducts.length} mô hình đang giảm giá
-            </p>
-            <div className="flex items-center gap-2">
-              <label htmlFor="sort-select" className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                Sắp xếp
-              </label>
-              <select
-                id="sort-select"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="input-field text-xs font-medium px-3 py-2 cursor-pointer"
-                title="Sắp xếp sản phẩm"
-              >
-                <option value="discount">Giảm giá nhiều nhất</option>
-                <option value="price-asc">Giá tăng dần</option>
-                <option value="price-desc">Giá giảm dần</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Grid */}
-          {sortedProducts.length === 0 ? (
-            <div className="card-surface text-center py-20">
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Hiện chưa có ưu đãi Flash Sale</p>
-              <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>Quay lại sau, MoriBox cập nhật ưu đãi thường xuyên.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {sortedProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  isLiked={likedProducts.includes(product.id)}
-                  onToggleLike={toggleLike}
-                  onQuickAdd={handleQuickAdd}
-                  onAddToCart={handleAddToCart}
-                />
-              ))}
-            </div>
-          )}
+          <ProductListing
+            products={flashSaleProducts}
+            likedProducts={likedProducts}
+            onToggleLike={toggleLike}
+            onQuickAdd={handleQuickAdd}
+            onAddToCart={handleAddToCart}
+            defaultSort="discount"
+            countLabel={(shown, total) => (shown === total ? `${total} mô hình đang giảm giá` : `${shown} / ${total} mô hình đang giảm giá`)}
+            emptyTitle="Hiện chưa có chương trình giảm giá"
+            emptyHint="Hãy quay lại sớm, các ưu đãi mới luôn được cập nhật."
+          />
         </main>
 
         <CartDrawer

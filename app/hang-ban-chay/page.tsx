@@ -1,11 +1,10 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import Navbar from '../../components/navbar';
 import CartDrawer from '../../components/cart-drawer';
-import ProductCard from '../../components/product-card';
+import ProductListing from '../../components/product-listing';
 import SiteFooter from '../../components/site-footer';
 import PromoBanner from '../../components/promo-banner';
 import { useGatedCart } from '../../hooks/use-gated-cart';
@@ -31,18 +30,8 @@ export default function BestSellersPage() {
   } = useGatedCart();
   const { products } = useProductCatalog();
 
-  const [sortBy, setSortBy] = useState('featured');
 
   const bestSellers = products.filter(p => p.isBestSeller);
-  const sortedProducts = [...bestSellers].sort((a, b) => {
-    if (sortBy === 'price-asc') return a.price - b.price;
-    if (sortBy === 'price-desc') return b.price - a.price;
-    if (sortBy === 'difficulty') {
-      const w: { [key: string]: number } = { Beginner: 1, Intermediate: 2, Advanced: 3, Expert: 4 };
-      return (w[b.specs.difficulty] || 0) - (w[a.specs.difficulty] || 0);
-    }
-    return 0;
-  });
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-base)' }}>
@@ -83,50 +72,16 @@ export default function BestSellersPage() {
             />
           </div>
 
-          {/* Toolbar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-            <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-              {sortedProducts.length} mô hình
-            </p>
-            <div className="flex items-center gap-2">
-              <label htmlFor="sort-select" className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                Sắp xếp
-              </label>
-              <select
-                id="sort-select"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="input-field text-xs font-medium px-3 py-2 cursor-pointer"
-                title="Sắp xếp sản phẩm"
-              >
-                <option value="featured">Nổi bật</option>
-                <option value="price-asc">Giá tăng dần</option>
-                <option value="price-desc">Giá giảm dần</option>
-                <option value="difficulty">Độ khó cao nhất</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Grid */}
-          {sortedProducts.length === 0 ? (
-            <div className="card-surface text-center py-20">
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Chưa có sản phẩm bán chạy</p>
-              <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>Quay lại sau, MoriBox cập nhật hàng thường xuyên.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {sortedProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  isLiked={likedProducts.includes(product.id)}
-                  onToggleLike={toggleLike}
-                  onQuickAdd={handleQuickAdd}
-                  onAddToCart={handleAddToCart}
-                />
-              ))}
-            </div>
-          )}
+          <ProductListing
+            products={bestSellers}
+            likedProducts={likedProducts}
+            onToggleLike={toggleLike}
+            onQuickAdd={handleQuickAdd}
+            onAddToCart={handleAddToCart}
+            defaultSort="featured"
+            emptyTitle="Chưa có mô hình bán chạy"
+            emptyHint="Quay lại sau, MoriBox cập nhật hàng thường xuyên."
+          />
         </main>
 
         <CartDrawer
